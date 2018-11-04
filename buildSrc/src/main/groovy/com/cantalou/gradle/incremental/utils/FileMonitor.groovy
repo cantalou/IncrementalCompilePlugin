@@ -1,4 +1,4 @@
-package com.m4399.gradle.incremental.tasks
+package com.cantalou.gradle.incremental.tasks
 
 import org.gradle.api.Project
 
@@ -44,14 +44,12 @@ class FileMonitor {
         })
     }
 
-    synchronized List<String> detectModified(Collection<File> files) {
-
-        if (newResourcesLastModifiedMap.size() > 0) {
-            return newResourcesLastModifiedMap.keySet().asList()
+    synchronized void detectModified(Collection<File> files) {
+        if (files == null || files.isEmpty()) {
+            return
         }
-
         long start = System.currentTimeMillis()
-        project.println "Start to check java resources modified"
+        project.println "FileMonitor: Start to check java resources modified"
         List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
         while (!javaResourcesDir.isEmpty()) {
             final File file = javaResourcesDir.remove(0)
@@ -68,25 +66,26 @@ class FileMonitor {
                         String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
                         if (isModified(file, infoStr)) {
                             if (!isCleanCheck) {
-                                project.println "Detect file modified ${file}"
+                                project.println "FileMonitor: Detect file modified ${file}"
                             }
                             newResourcesLastModifiedMap.put(file.absolutePath, file.absolutePath + lineSeparator + file.lastModified() + lineSeparator + uniqueId(file))
                         }
                     }
                 }
-
             })
         }
         service.awaitTermination(50, TimeUnit.MILLISECONDS)
-        project.println "Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${System.currentTimeMillis() - start}ms"
-        updateResourcesModified()
-        return newResourcesLastModifiedMap.keySet().asList()
+        project.println "FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${System.currentTimeMillis() - start}ms"
+    }
+
+    List<File> getModifiedFile() {
+        newResourcesLastModifiedMap.keySet().asList()
     }
 
     boolean isModified(File file, String infoStr) {
         if (infoStr == null || infoStr.length() == 0) {
             if (!isCleanCheck) {
-                project.println "infoStr empty ${file}"
+                project.println "infoStr empty"
             }
             return true
         }
@@ -103,8 +102,8 @@ class FileMonitor {
         }
 
         if (!isCleanCheck) {
-            project.println "infoStr lastModified ${infos[1]},length:${infos[2]}"
-            project.println "file    lastModified ${fileModified}, hashcode:${uniqueId}"
+            project.println "FileMonitor: infoStr lastModified ${infos[1]},length:${infos[2]}"
+            project.println "FileMonitor: file    lastModified ${fileModified}, hashcode:${uniqueId}"
         }
         return true
     }
@@ -119,11 +118,15 @@ class FileMonitor {
                 writer.println(v)
             }
         }
-        project.println "Update java resources modified info"
+        project.println "FileMonitor: Update java resources modified info"
     }
 
 
-    private int uniqueId(File file) {
+    int uniqueId(File file) {
         file.getText("UTF-8").hashCode()
+    }
+
+    void clearCache() {
+        resourcesLastModifiedFile.delete()
     }
 }
