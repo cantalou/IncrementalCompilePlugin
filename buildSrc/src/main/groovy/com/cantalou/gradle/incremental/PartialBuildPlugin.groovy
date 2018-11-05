@@ -7,6 +7,8 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.compile.JavaCompile
 
+import java.awt.SystemColor
+
 /**
  * By default, Gradle will disable incremental compile with javac when a modified java source contains constant field,
  * even though the constant value is the same as preview compile, which leads to spending more time in building process.
@@ -25,7 +27,6 @@ class PartialBuildPlugin implements Plugin<Project> {
         this.project = project
 
         project.afterEvaluate {
-
             if (!project.hasProperty("android")) {
                 project.println("${project.path}:PartialBuildPlugin Plugin must work with Android plugin")
                 return
@@ -53,7 +54,9 @@ class PartialBuildPlugin implements Plugin<Project> {
         variant.javaCompiler.dependsOn task
 
         Thread.start {
-            monitor.detectModified(getSourceFiles(variant))
+            long start = System.currentTimeMillis()
+            monitor.detectModified(getSourceFiles(variant), true)
+            long duration = System.currentTimeMillis() - start
         }
     }
 

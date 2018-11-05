@@ -60,7 +60,7 @@ class PartialJavaCompilerTask extends DefaultTask {
             project.println("${project.path}:PartialJavaCompilerTask ouput dir is null , need full recompile")
             return
         }
-        monitor.detectModified([getGenerateDir()])
+        monitor.detectModified([getGenerateDir()], false)
         changedFiles = monitor.getModifiedFile()
 
         //block until detect task finish
