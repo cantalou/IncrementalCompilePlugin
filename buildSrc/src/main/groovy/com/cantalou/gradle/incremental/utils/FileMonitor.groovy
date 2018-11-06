@@ -20,8 +20,6 @@ class FileMonitor {
 
     boolean isCleanCheck
 
-    public final int defaultThreadPoolSize = Runtime.runtime.availableProcessors() * 16
-
     FileMonitor(Project project, String outputName) {
         this.project = project
 
@@ -51,21 +49,9 @@ class FileMonitor {
         List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
 
         int threadPoolSize = defaultThreadPoolSize
-        Properties properties = new Properties()
         int profileDuration = 0
         if (profile) {
-            File propertiesFile = project.rootProject.file("local.properties")
-            if (propertiesFile.exists()) {
-                propertiesFile.withInputStream { is ->
-                    properties.load(is)
-                }
-                String profileInfo = properties.getProperty("fileMonitor.profile")
-                if (profileInfo != null && !profileInfo.isEmpty()) {
-                    String[] infos = profileInfo.split(";")
-                    profileDuration = infos[0].toInteger()
-                    threadPoolSize = infos[1].toInteger() + Runtime.runtime.availableProcessors() * 4
-                }
-            }
+
         }
 
         ExecutorService service = Executors.newFixedThreadPool(threadPoolSize)
@@ -94,22 +80,7 @@ class FileMonitor {
         }
         service.awaitTermination(50, TimeUnit.MILLISECONDS)
         int duration = System.currentTimeMillis() - start
-        if (profile && duration > 100) {
-            if (duration < profileDuration) {
-                project.println "FileMonitor: increase thread pool size to ${threadPoolSize}"
-                properties.setProperty("fileMonitor.profile", "${duration};${threadPoolSize}")
-            } else {
-                threadPoolSize = threadPoolSize - Runtime.runtime.availableProcessors()
-                if (threadPoolSize < defaultThreadPoolSize) {
-                    threadPoolSize = defaultThreadPoolSize
-                }
-                project.println "FileMonitor: decrease thread pool size to ${threadPoolSize}"
-                properties.setProperty("fileMonitor.profile", "${profileDuration};${threadPoolSize}")
-            }
-            project.rootProject.file("local.properties").withWriter("UTF-8") { out ->
-                properties.store(out, "FileMonitor profile info")
-            }
-        }
+
         project.println "FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms"
     }
 
