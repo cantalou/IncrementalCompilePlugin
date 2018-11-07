@@ -4,6 +4,7 @@ import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.tasks.FileMonitor
 import com.google.common.collect.ImmutableList
+import com.intellij.psi.templateLanguages.OuterLanguageElement
 import groovy.json.internal.FastStringUtils
 import org.apache.tools.ant.util.StringUtils
 import org.codehaus.groovy.util.StringUtil
@@ -13,9 +14,14 @@ import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
 import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.api.tasks.incremental.IncrementalTaskInputs
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
+
+import java.awt.Label
+import java.lang.reflect.Field
+import java.lang.reflect.Modifier
 
 /**
  *
@@ -50,7 +56,7 @@ class PartialJavaCompilerTask extends DefaultTask {
     }
 
     @TaskAction
-    protected void compile() {
+    protected void compile(IncrementalTaskInputs inputs) {
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
@@ -92,18 +98,19 @@ class PartialJavaCompilerTask extends DefaultTask {
             sourcePaths << it.getDir().absolutePath
         }
 
+        int modifierFlag = Modifier.STATIC | Modifier.FINAL
+        boolean fullCompile = false
+
         URLClassLoader classLoader = new URLClassLoader(new URL[1] { new URL(javaCompiler.destinationDir) })
-        changedFiles.each { File modifiedFile ->
-            for (String sourcePath : sourcePaths) {
-                String className = modifiedFile.absolutePath.replace(sourcePath)
-                if (className.length() != modifiedFile.absolutePath.length()) {
-                    if (className.startsWith("\\")) {
-                        className = className.substring("\\")
-                    }
-                    className = className.replaceAll("\\\\", ".");
-                    Class
-                    return
+        for (int i = 0; i < changedFiles.size() && !fullCompile; i++) {
+            File modifiedFile = changedFiles.get(i)
+            for (int j = 0; i < sourcePaths.size() && !fullCompile; j++) {
+                String sourcePath = sourcePaths.get(j)
+                String className = convertClassName(sourcePath, modifiedFile)
+                if (className == null) {
+                    continue
                 }
+                fullCompile = fullCompile(classLoader.loadClass(className), modifiedFile)
             }
         }
 
@@ -113,11 +120,11 @@ class PartialJavaCompilerTask extends DefaultTask {
         performCompilation(spec, createCompiler(spec));
     }
 
-    private Compiler<JavaCompileSpec> createCompiler(JavaCompileSpec spec) {
+    Compiler<JavaCompileSpec> createCompiler(JavaCompileSpec spec) {
         return CompilerUtil.castCompiler(((JavaToolChainInternal) javaCompiler.getToolChain()).select(javaCompiler.getPlatform()).newCompiler(spec.getClass()))
     }
 
-    private void performCompilation(JavaCompileSpec spec, Compiler<JavaCompileSpec> compiler) {
+    void performCompilation(JavaCompileSpec spec, Compiler<JavaCompileSpec> compiler) {
         WorkResult result
         try {
             result = compiler.execute(spec);
@@ -134,7 +141,7 @@ class PartialJavaCompilerTask extends DefaultTask {
     }
 
     @SuppressWarnings("deprecation")
-    private DefaultJavaCompileSpec createSpec() {
+    DefaultJavaCompileSpec createSpec() {
         DefaultJavaCompileSpec spec = new DefaultJavaCompileSpecFactory(javaCompiler.getOptions()).create();
         spec.setSource(getProject().files(changedFiles.toArray()))
         spec.setDestinationDir(javaCompiler.getDestinationDir())
@@ -148,5 +155,19 @@ class PartialJavaCompilerTask extends DefaultTask {
         spec.setSourceCompatibility(javaCompiler.getSourceCompatibility())
         spec.setCompileOptions(javaCompiler.getOptions());
         return spec
+    }
+
+    String convertClassName(String sourcePath, File modifiedFile) {
+        String className = modifiedFile.absolutePath.replace(sourcePath)
+        if (className.length() == modifiedFile.absolutePath.length()) {
+            return null
+        }
+        String[] parts = className.split(File.separator)
+        parts[parts.length - 1] = modifiedFile.name
+        return parts.join(".")
+    }
+
+    boolean fullCompile(Class clazz, File sourceFile) {
+        return clazz.getDeclaredFields().any { it.modifiers & modifierFlag == modifierFlag }
     }
 }
