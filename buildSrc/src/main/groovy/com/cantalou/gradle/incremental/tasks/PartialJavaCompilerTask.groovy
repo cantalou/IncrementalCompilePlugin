@@ -4,6 +4,9 @@ import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.tasks.FileMonitor
 import com.google.common.collect.ImmutableList
+import groovy.json.internal.FastStringUtils
+import org.apache.tools.ant.util.StringUtils
+import org.codehaus.groovy.util.StringUtil
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
@@ -89,10 +92,17 @@ class PartialJavaCompilerTask extends DefaultTask {
             sourcePaths << it.getDir().absolutePath
         }
 
+        URLClassLoader classLoader = new URLClassLoader(new URL[1] { new URL(javaCompiler.destinationDir) })
         changedFiles.each { File modifiedFile ->
-            for(String sourcePath : sourcePaths){
-                if(modifiedFile.absolutePath.startsWith(sourcePath)){
-
+            for (String sourcePath : sourcePaths) {
+                String className = modifiedFile.absolutePath.replace(sourcePath)
+                if (className.length() != modifiedFile.absolutePath.length()) {
+                    if (className.startsWith("\\")) {
+                        className = className.substring("\\")
+                    }
+                    className = className.replaceAll("\\\\", ".");
+                    Class
+                    return
                 }
             }
         }
