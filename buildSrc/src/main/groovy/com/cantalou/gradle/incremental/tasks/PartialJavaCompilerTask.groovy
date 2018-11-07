@@ -77,11 +77,10 @@ class PartialJavaCompilerTask extends DefaultTask {
             return
         }
 
-        javaCompiler.enabled = false
-        project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
-
         if (changedFiles == null || changedFiles.isEmpty()) {
             project.println("${project.path}:partialJavaCompilerTask UP-TO-DATE")
+            javaCompiler.enabled = false
+            project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
             return
         }
 
@@ -98,6 +97,8 @@ class PartialJavaCompilerTask extends DefaultTask {
             }
         }
 
+        javaCompiler.enabled = false
+        project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
         DefaultJavaCompileSpec spec = createSpec();
         performCompilation(spec, createCompiler(spec));
     }
