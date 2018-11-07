@@ -6,6 +6,6 @@ package com.cantalou.gradle.plugin;
  */
 public class Utils {
     public static int get() {
-        return 7;
+        return 8;
     }
 }

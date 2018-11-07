@@ -66,7 +66,7 @@ class ThreadProfile {
             project.println "ThreadProfile: decrease thread pool size to ${threadPoolSize}"
             properties.setProperty("fileMonitor.profile", "${profileDuration};${threadPoolSize}")
         }
-        project.rootProject.file("local.properties").withWriter("UTF-8") { out ->
+        project.rootProject.file(PROPERTIES_FILE_NAME).withWriter("UTF-8") { out ->
             properties.store(out, "Thread Profile Info")
         }
     }

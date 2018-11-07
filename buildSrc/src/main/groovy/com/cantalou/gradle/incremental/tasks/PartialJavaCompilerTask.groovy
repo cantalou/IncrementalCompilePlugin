@@ -2,23 +2,17 @@ package com.cantalou.gradle.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
+import com.cantalou.gradle.incremental.tasks.FileMonitor
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
-import org.gradle.api.tasks.InputDirectory
-import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.OutputDirectory
-import org.gradle.api.tasks.SkipWhenEmpty
-import org.gradle.api.tasks.TaskAction
-import org.gradle.api.tasks.WorkResult
+import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
-
-import com.cantalou.gradle.incremental.tasks.FileMonitor
 
 /**
  *
@@ -49,7 +43,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
     @OutputDirectory
     File getCompileOutputs() {
-        return javaCompiler.destinationDir
+        return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/partial")
     }
 
     @TaskAction
@@ -57,7 +51,14 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
-            project.println("${project.path}:PartialJavaCompilerTask ouput dir is null , need full recompile")
+            project.println("${project.path}:partialJavaCompilerTask ouput dir is null , need full recompile")
+            javaCompiler.doLast {
+                if (javaCompiler.state.didWork) {
+                    monitor.updateResourcesModified()
+                } else {
+                    monitor.clearCache()
+                }
+            }
             return
         }
         monitor.detectModified([getGenerateDir()], false)
@@ -65,7 +66,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
-            project.println("${project.path}:PartialJavaCompilerTask Detect modified file lager than 40, use normal java compiler")
+            project.println("${project.path}:partialJavaCompilerTask Detect modified file lager than 40, use normal java compiler")
             javaCompiler.doLast {
                 if (javaCompiler.state.didWork) {
                     monitor.updateResourcesModified()
@@ -77,11 +78,24 @@ class PartialJavaCompilerTask extends DefaultTask {
         }
 
         javaCompiler.enabled = false
-        project.println("${project.path}:PartialJavaCompilerTask change ${javaCompiler}.enable=false")
+        project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
 
         if (changedFiles == null || changedFiles.isEmpty()) {
-            project.println("${project.path}:PartialJavaCompilerTask UP-TO-DATE")
+            project.println("${project.path}:partialJavaCompilerTask UP-TO-DATE")
             return
+        }
+
+        def sourcePaths = []
+        Ref.getValue(javaCompiler, SourceTask.class, "source").each {
+            sourcePaths << it.getDir().absolutePath
+        }
+
+        changedFiles.each { File modifiedFile ->
+            for(String sourcePath : sourcePaths){
+                if(modifiedFile.absolutePath.startsWith(sourcePath)){
+
+                }
+            }
         }
 
         DefaultJavaCompileSpec spec = createSpec();

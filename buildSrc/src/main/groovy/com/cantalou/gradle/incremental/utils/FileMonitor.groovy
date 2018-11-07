@@ -1,5 +1,6 @@
 package com.cantalou.gradle.incremental.tasks
 
+import com.cantalou.gradle.incremental.ThreadProfile
 import org.gradle.api.Project
 
 import java.util.concurrent.*
@@ -40,6 +41,7 @@ class FileMonitor {
     }
 
     synchronized void detectModified(Collection<File> files, boolean profile) {
+
         if (files == null || files.isEmpty()) {
             return
         }
@@ -48,13 +50,10 @@ class FileMonitor {
         project.println "FileMonitor: Start to check java resources modified"
         List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
 
-        int threadPoolSize = defaultThreadPoolSize
-        int profileDuration = 0
-        if (profile) {
+        def threadProfile = new ThreadProfile(project)
+        ThreadProfile.Info info = threadProfile.loadInfo()
 
-        }
-
-        ExecutorService service = Executors.newFixedThreadPool(threadPoolSize)
+        ExecutorService service = Executors.newFixedThreadPool(info.threadSize)
         while (!javaResourcesDir.isEmpty()) {
             final File file = javaResourcesDir.remove(0)
             service.execute(new Runnable() {
@@ -80,7 +79,9 @@ class FileMonitor {
         }
         service.awaitTermination(50, TimeUnit.MILLISECONDS)
         int duration = System.currentTimeMillis() - start
-
+        if (profile) {
+            threadProfile.updateProfile(duration)
+        }
         project.println "FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms"
     }
 
@@ -115,6 +116,7 @@ class FileMonitor {
     }
 
     void updateResourcesModified() {
+
         if (newResourcesLastModifiedMap.isEmpty()) {
             return
         }
