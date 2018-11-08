@@ -4,10 +4,6 @@ import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.tasks.FileMonitor
 import com.google.common.collect.ImmutableList
-import com.intellij.psi.templateLanguages.OuterLanguageElement
-import groovy.json.internal.FastStringUtils
-import org.apache.tools.ant.util.StringUtils
-import org.codehaus.groovy.util.StringUtil
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
@@ -19,9 +15,9 @@ import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
 
-import java.awt.Label
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
+import java.util.regex.Pattern
 
 /**
  *
@@ -32,7 +28,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
     FileMonitor monitor
 
-    List<File> changedFiles = new ArrayList<>()
+    List<String> changedFiles = new ArrayList<>()
 
     ApplicationVariantImpl variant
 
@@ -60,7 +56,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
-            project.println("${project.path}:partialJavaCompilerTask ouput dir is null , need full recompile")
+            project.println("${project.path}:${getName()} ouput dir is null , need full recompile")
             javaCompiler.doLast {
                 if (javaCompiler.state.didWork) {
                     monitor.updateResourcesModified()
@@ -72,10 +68,14 @@ class PartialJavaCompilerTask extends DefaultTask {
         }
         monitor.detectModified([getGenerateDir()], false)
         changedFiles = monitor.getModifiedFile()
+        project.println("${project.path}:${getName()} file need to be recompile: ")
+        changedFiles.each {
+            project.println it
+        }
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
-            project.println("${project.path}:partialJavaCompilerTask Detect modified file lager than 40, use normal java compiler")
+            project.println("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
             javaCompiler.doLast {
                 if (javaCompiler.state.didWork) {
                     monitor.updateResourcesModified()
@@ -87,37 +87,50 @@ class PartialJavaCompilerTask extends DefaultTask {
         }
 
         if (changedFiles == null || changedFiles.isEmpty()) {
-            project.println("${project.path}:partialJavaCompilerTask UP-TO-DATE")
+            project.println("${project.path}:${getName()} UP-TO-DATE")
             javaCompiler.enabled = false
-            project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
+            project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
             return
         }
 
-        def sourcePaths = []
+        def sourceDirPaths = []
         Ref.getValue(javaCompiler, SourceTask.class, "source").each {
-            sourcePaths << it.getDir().absolutePath
+            sourceDirPaths << it.getDir().absolutePath
         }
 
-        int modifierFlag = Modifier.STATIC | Modifier.FINAL
-        boolean fullCompile = false
+        def jars = javaCompiler.classpath.getFiles().collect { it.toURL() }
+        jars.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
+        jars << javaCompiler.destinationDir.toURL()
 
-        URLClassLoader classLoader = new URLClassLoader(new URL[1] { new URL(javaCompiler.destinationDir) })
-        for (int i = 0; i < changedFiles.size() && !fullCompile; i++) {
-            File modifiedFile = changedFiles.get(i)
-            for (int j = 0; i < sourcePaths.size() && !fullCompile; j++) {
-                String sourcePath = sourcePaths.get(j)
+        def classpath = jars.toArray(new URL[0])
+        def preCompileClasses = []
+        URLClassLoader preClassloader = new URLClassLoader(classpath)
+        changedFiles.each { String modifiedFile ->
+            for (int j = 0; j < sourceDirPaths.size(); j++) {
+                String sourcePath = sourceDirPaths.get(j)
                 String className = convertClassName(sourcePath, modifiedFile)
-                if (className == null) {
-                    continue
+                if (className != null) {
+                    preCompileClasses << preClassloader.loadClass(className)
+                    break
                 }
-                fullCompile = fullCompile(classLoader.loadClass(className), modifiedFile)
+            }
+        }
+
+        DefaultJavaCompileSpec spec = createSpec()
+        performCompilation(spec, createCompiler(spec))
+
+        URLClassLoader partialClassloader = new URLClassLoader(classpath)
+        for (Class preCompileClazz : preCompileClasses) {
+            Class partialCompileClazz = partialClassloader.loadClass(preCompileClazz.name)
+            if (checkFullCompile(preCompileClazz, partialCompileClazz)) {
+                project.println("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+                return
             }
         }
 
         javaCompiler.enabled = false
-        project.println("${project.path}:partialJavaCompilerTask change ${javaCompiler}.enable=false")
-        DefaultJavaCompileSpec spec = createSpec();
-        performCompilation(spec, createCompiler(spec));
+        project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+
     }
 
     Compiler<JavaCompileSpec> createCompiler(JavaCompileSpec spec) {
@@ -144,7 +157,7 @@ class PartialJavaCompilerTask extends DefaultTask {
     DefaultJavaCompileSpec createSpec() {
         DefaultJavaCompileSpec spec = new DefaultJavaCompileSpecFactory(javaCompiler.getOptions()).create();
         spec.setSource(getProject().files(changedFiles.toArray()))
-        spec.setDestinationDir(javaCompiler.getDestinationDir())
+        spec.setDestinationDir(javaCompiler.destinationDir)
         spec.setWorkingDir(getProject().getProjectDir())
         spec.setTempDir(javaCompiler.getTemporaryDir())
         List<File> classpath = javaCompiler.getClasspath().asList()
@@ -157,17 +170,62 @@ class PartialJavaCompilerTask extends DefaultTask {
         return spec
     }
 
-    String convertClassName(String sourcePath, File modifiedFile) {
-        String className = modifiedFile.absolutePath.replace(sourcePath)
-        if (className.length() == modifiedFile.absolutePath.length()) {
+    String convertClassName(String sourcePath, String modifiedFile) {
+        String className = modifiedFile.replace(sourcePath, "")
+        if (className.length() == modifiedFile.length()) {
             return null
         }
-        String[] parts = className.split(File.separator)
-        parts[parts.length - 1] = modifiedFile.name
+
+        if (className.startsWith(File.separator)) {
+            className = className.substring(1)
+        }
+
+        String[] parts = className.split(Pattern.quote(File.separator))
+        parts[parts.length - 1] = new File(modifiedFile).name.replace(".java", "")
         return parts.join(".")
     }
 
-    boolean fullCompile(Class clazz, File sourceFile) {
-        return clazz.getDeclaredFields().any { it.modifiers & modifierFlag == modifierFlag }
+    boolean checkFullCompile(Class preCompileClazz, Class partialCompileClazz) {
+        int modifierFlag = Modifier.STATIC | Modifier.FINAL
+        def preCompileFields = preCompileClazz.getDeclaredFields()
+        for (Field preField : preCompileFields) {
+            preField.setAccessible(true)
+            if ((preField.modifiers & modifierFlag) != modifierFlag) {
+                continue
+            }
+            def type = preField.getType()
+            if (!(type.isPrimitive() || type.equals(String.class))) {
+                continue
+            }
+            try {
+                Field partialField = partialCompileClazz.getDeclaredField(preField.name)
+                partialField.setAccessible(true)
+                if (!preField.get(null).equals(partialField.get(null))) {
+                    project.println("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${partialField.get(null)}")
+                    return true
+                }
+            } catch (NoSuchFieldException e) {
+                project.println("${project.path}:${getName()} field '${preField.name}' was missing from ${partialCompileClazz.name}")
+                return true
+            }
+        }
+
+        return false
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

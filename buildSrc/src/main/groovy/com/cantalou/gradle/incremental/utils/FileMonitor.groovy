@@ -52,8 +52,7 @@ class FileMonitor {
 
         def threadProfile = new ThreadProfile(project)
         ThreadProfile.Info info = threadProfile.loadInfo()
-
-        ExecutorService service = Executors.newFixedThreadPool(info.threadSize)
+        ExecutorService service = Executors.newFixedThreadPool(info.getThreadSize())
         while (!javaResourcesDir.isEmpty()) {
             final File file = javaResourcesDir.remove(0)
             service.execute(new Runnable() {
@@ -85,7 +84,7 @@ class FileMonitor {
         project.println "FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms"
     }
 
-    List<File> getModifiedFile() {
+    List<String> getModifiedFile() {
         newResourcesLastModifiedMap.keySet().asList()
     }
 

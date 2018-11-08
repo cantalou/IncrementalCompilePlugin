@@ -17,11 +17,29 @@ class ThreadProfile {
     static class Info {
         int threadSize = DEFAULT_THREAD_NUM
         int duration
+
+        void setThreadSize(int threadSize) {
+            this.threadSize = threadSize
+        }
+
+        void setDuration(int duration) {
+            this.duration = duration
+        }
+
+        int getThreadSize() {
+            return threadSize
+        }
+
+        int getDuration() {
+            return duration
+        }
     }
 
     Project project
 
     Info info = new Info()
+
+    Properties properties = new Properties()
 
     ThreadProfile(Project project) {
         this.project = project
@@ -34,7 +52,6 @@ class ThreadProfile {
             return info
         }
 
-        Properties properties = new Properties()
         propertiesFile.withInputStream { is ->
             properties.load(is)
         }
@@ -45,8 +62,9 @@ class ThreadProfile {
         }
 
         String[] infos = profileInfo.split(SEPARATOR)
-        info.threadSize = infos[0].toInteger()
-        info.threadSize = infos[1].toInteger() + THREAD_INCREMENT
+        info.setDuration(infos[0].toInteger())
+        info.setThreadSize(infos[1].toInteger() + THREAD_INCREMENT)
+        return info
     }
 
     void updateProfile(int duration) {
@@ -55,16 +73,16 @@ class ThreadProfile {
             return
         }
 
-        if (duration < profileDuration) {
-            project.println "ThreadProfile: increase thread pool size to ${threadPoolSize}"
-            properties.setProperty("fileMonitor.profile", "${duration};${threadPoolSize}")
+        if (duration < info.duration) {
+            project.println "ThreadProfile: increase thread pool size to ${info.threadSize}"
+            properties.setProperty("fileMonitor.profile", "${duration};${info.threadSize}")
         } else {
-            threadPoolSize = threadPoolSize - Runtime.runtime.availableProcessors()
-            if (threadPoolSize < defaultThreadPoolSize) {
-                threadPoolSize = defaultThreadPoolSize
+            info.threadSize = info.threadSize - THREAD_INCREMENT
+            if (info.threadSize < DEFAULT_THREAD_NUM) {
+                info.threadSize = DEFAULT_THREAD_NUM
             }
-            project.println "ThreadProfile: decrease thread pool size to ${threadPoolSize}"
-            properties.setProperty("fileMonitor.profile", "${profileDuration};${threadPoolSize}")
+            project.println "ThreadProfile: decrease thread pool size to ${info.threadSize}"
+            properties.setProperty("fileMonitor.profile", "${info.duration};${info.threadSize}")
         }
         project.rootProject.file(PROPERTIES_FILE_NAME).withWriter("UTF-8") { out ->
             properties.store(out, "Thread Profile Info")
