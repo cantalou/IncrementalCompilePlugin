@@ -3,6 +3,7 @@ package com.cantalou.gradle.incremental.tasks
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.utils.FileMonitor
+import com.cantalou.gradle.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
