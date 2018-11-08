@@ -46,7 +46,7 @@ class FileMonitor {
         }
 
         long start = System.currentTimeMillis()
-        project.println "FileMonitor: Start to check java resources modified"
+        project.println "FileMonitor: Start to check java resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}"
         List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
 
         def threadProfile = new ThreadProfile(project)

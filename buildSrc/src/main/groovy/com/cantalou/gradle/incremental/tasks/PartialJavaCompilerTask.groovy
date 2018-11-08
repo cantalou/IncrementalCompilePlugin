@@ -125,14 +125,14 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         javaCompiler.enabled = false
         project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
-        createProjectCompileJar()
+        createProjectCompileJar(getName())
     }
 
     void fullCompileCallback() {
         javaCompiler.doLast {
             if (javaCompiler.state.didWork) {
                 monitor.updateResourcesModified()
-                createProjectCompileJar()
+                createProjectCompileJar(javaCompiler.name)
             } else {
                 // monitor.clearCache()
             }
@@ -220,13 +220,13 @@ class PartialJavaCompilerTask extends DefaultTask {
         return false
     }
 
-    void createProjectCompileJar() {
+    void createProjectCompileJar(String name) {
         File destJar = getCombineJar()
         destJar.getParentFile().mkdirs()
         JarMerger merger = new JarMerger(destJar)
         merger.addFolder(javaCompiler.destinationDir)
         merger.close()
-        project.println("${project.path}:${getName()} crate ${destJar}")
+        project.println("${project.path}:${name} crate ${destJar}")
     }
 }
 
