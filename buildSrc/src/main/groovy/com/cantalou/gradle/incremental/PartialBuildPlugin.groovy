@@ -1,8 +1,8 @@
 package com.cantalou.gradle.incremental
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
-import com.cantalou.gradle.incremental.tasks.FileMonitor
 import com.cantalou.gradle.incremental.tasks.PartialJavaCompilerTask
+import com.cantalou.gradle.incremental.utils.FileMonitor
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.tasks.compile.JavaCompile

@@ -1,4 +1,4 @@
-package com.cantalou.gradle.incremental
+package com.cantalou.gradle.incremental.utils
 
 import org.gradle.api.Project
 

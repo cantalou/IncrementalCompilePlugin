@@ -1,4 +1,4 @@
-package com.cantalou.gradle.incremental.tasks
+package com.cantalou.gradle.incremental.utils
 
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier

@@ -1,6 +1,5 @@
-package com.cantalou.gradle.incremental.tasks
+package com.cantalou.gradle.incremental.utils
 
-import com.cantalou.gradle.incremental.ThreadProfile
 import org.gradle.api.Project
 
 import java.util.concurrent.*
