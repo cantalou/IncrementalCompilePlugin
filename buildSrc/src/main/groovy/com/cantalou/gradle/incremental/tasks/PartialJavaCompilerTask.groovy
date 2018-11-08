@@ -3,6 +3,7 @@ package com.cantalou.gradle.incremental.tasks
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.utils.FileMonitor
+import com.cantalou.gradle.incremental.utils.JarMerger
 import com.cantalou.gradle.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
@@ -49,7 +50,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
     @OutputDirectory
     File getCompileOutputs() {
-        return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/partial")
+        return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/partial/${variant.dirName}")
     }
 
     @TaskAction
@@ -58,13 +59,7 @@ class PartialJavaCompilerTask extends DefaultTask {
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             project.println("${project.path}:${getName()} ouput dir is null , need full recompile")
-            javaCompiler.doLast {
-                if (javaCompiler.state.didWork) {
-                    monitor.updateResourcesModified()
-                } else {
-                    monitor.clearCache()
-                }
-            }
+            fullCompileCallback()
             return
         }
         monitor.detectModified([getGenerateDir()], false)
@@ -77,13 +72,7 @@ class PartialJavaCompilerTask extends DefaultTask {
         //block until detect task finish
         if (changedFiles.size() > 40) {
             project.println("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
-            javaCompiler.doLast {
-                if (javaCompiler.state.didWork) {
-                    monitor.updateResourcesModified()
-                } else {
-                    monitor.clearCache()
-                }
-            }
+            fullCompileCallback()
             return
         }
 
@@ -131,7 +120,18 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         javaCompiler.enabled = false
         project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+        createProjectCompileJar()
+    }
 
+    void fullCompileCallback() {
+        javaCompiler.doLast {
+            if (javaCompiler.state.didWork) {
+                monitor.updateResourcesModified()
+                createProjectCompileJar()
+            } else {
+                // monitor.clearCache()
+            }
+        }
     }
 
     Compiler<JavaCompileSpec> createCompiler(JavaCompileSpec spec) {
@@ -212,6 +212,15 @@ class PartialJavaCompilerTask extends DefaultTask {
         }
 
         return false
+    }
+
+    void createProjectCompileJar() {
+        project.println("${project.path}:${getName()} ")
+        File destJar = new File(getCompileOutputs(), "combine.jar")
+        destJar.getParentFile().mkdirs()
+        JarMerger merger = new JarMerger(destJar)
+        merger.addFolder(javaCompiler.destinationDir)
+        merger.close()
     }
 }
 
