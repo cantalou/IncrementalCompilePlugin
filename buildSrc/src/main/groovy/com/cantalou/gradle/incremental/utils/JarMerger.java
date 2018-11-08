@@ -22,12 +22,6 @@ import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/**
- * @author LinZhiWei
- * @date 2018年11月08日 18:12
- *
- * Copyright (c) 2018年, 4399 Network CO.ltd. All Rights Reserved.
- */
 public class JarMerger
 {
     private final byte[] buffer = new byte[8192];

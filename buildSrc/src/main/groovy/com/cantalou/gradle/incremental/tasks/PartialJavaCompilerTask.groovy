@@ -50,7 +50,12 @@ class PartialJavaCompilerTask extends DefaultTask {
 
     @OutputDirectory
     File getCompileOutputs() {
-        return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/partial/${variant.dirName}")
+        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}")
+    }
+
+    @OutputFile
+    File getCombineJar() {
+        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}/combine.jar")
     }
 
     @TaskAction
@@ -162,6 +167,7 @@ class PartialJavaCompilerTask extends DefaultTask {
         spec.setWorkingDir(getProject().getProjectDir())
         spec.setTempDir(javaCompiler.getTemporaryDir())
         List<File> classpath = javaCompiler.getClasspath().asList()
+        classpath << getCombineJar()
         classpath << javaCompiler.destinationDir
         spec.setCompileClasspath(classpath)
         spec.setAnnotationProcessorPath(ImmutableList.copyOf(javaCompiler.getEffectiveAnnotationProcessorPath()))
@@ -215,12 +221,12 @@ class PartialJavaCompilerTask extends DefaultTask {
     }
 
     void createProjectCompileJar() {
-        project.println("${project.path}:${getName()} ")
-        File destJar = new File(getCompileOutputs(), "combine.jar")
+        File destJar = getCombineJar()
         destJar.getParentFile().mkdirs()
         JarMerger merger = new JarMerger(destJar)
         merger.addFolder(javaCompiler.destinationDir)
         merger.close()
+        project.println("${project.path}:${getName()} crate ${destJar}")
     }
 }
 
