@@ -61,13 +61,21 @@ class PartialJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
+        monitor.detectModified([getGenerateDir()], false)
+
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             project.println("${project.path}:${getName()} ouput dir is null , need full recompile")
             fullCompileCallback()
             return
         }
-        monitor.detectModified([getGenerateDir()], false)
+
+        if(!getCombineJar().exists()){
+            project.println("${project.path}:${getName()} ouput combind.jar was miss , need full recompile")
+            fullCompileCallback()
+            return
+        }
+
         changedFiles = monitor.getModifiedFile()
         project.println("${project.path}:${getName()} file need to be recompile: ")
         changedFiles.each {
