@@ -3,7 +3,6 @@ package com.cantalou.gradle.incremental.tasks
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.utils.FileMonitor
-import com.cantalou.gradle.incremental.utils.JarMerger
 import com.cantalou.gradle.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
@@ -53,11 +52,6 @@ class PartialJavaCompilerTask extends DefaultTask {
         return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}")
     }
 
-    @OutputFile
-    File getCombineJar() {
-        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}/combine.jar")
-    }
-
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
@@ -66,12 +60,6 @@ class PartialJavaCompilerTask extends DefaultTask {
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             project.println("${project.path}:${getName()} ouput dir is null , need full recompile")
-            fullCompileCallback()
-            return
-        }
-
-        if(!getCombineJar().exists()){
-            project.println("${project.path}:${getName()} ouput combind.jar was miss , need full recompile")
             fullCompileCallback()
             return
         }
@@ -133,14 +121,12 @@ class PartialJavaCompilerTask extends DefaultTask {
 
         javaCompiler.enabled = false
         project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
-        createProjectCompileJar(getName())
     }
 
     void fullCompileCallback() {
         javaCompiler.doLast {
             if (javaCompiler.state.didWork) {
                 monitor.updateResourcesModified()
-                createProjectCompileJar(javaCompiler.name)
             } else {
                 // monitor.clearCache()
             }
@@ -175,7 +161,6 @@ class PartialJavaCompilerTask extends DefaultTask {
         spec.setWorkingDir(getProject().getProjectDir())
         spec.setTempDir(javaCompiler.getTemporaryDir())
         List<File> classpath = javaCompiler.getClasspath().asList()
-        classpath << getCombineJar()
         classpath << javaCompiler.destinationDir
         spec.setCompileClasspath(classpath)
         spec.setAnnotationProcessorPath(ImmutableList.copyOf(javaCompiler.getEffectiveAnnotationProcessorPath()))
@@ -226,15 +211,6 @@ class PartialJavaCompilerTask extends DefaultTask {
         }
 
         return false
-    }
-
-    void createProjectCompileJar(String name) {
-        File destJar = getCombineJar()
-        destJar.getParentFile().mkdirs()
-        JarMerger merger = new JarMerger(destJar)
-        merger.addFolder(javaCompiler.destinationDir)
-        merger.close()
-        project.println("${project.path}:${name} crate ${destJar}")
     }
 }
 
