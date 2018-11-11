@@ -59,6 +59,8 @@ class PartialJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
+        monitor.detectModified([getGenerateDir()], false)
+
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             LOG.lifecycle("${project.path}:${getName()} ouput dir is null , need full recompile")
