@@ -5,6 +5,9 @@ import com.cantalou.gradle.incremental.tasks.PartialJavaCompilerTask
 import com.cantalou.gradle.incremental.utils.FileMonitor
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.internal.tasks.compile.incremental.IncrementalCompilerDecorator
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.compile.JavaCompile
 
 /**
@@ -17,6 +20,8 @@ import org.gradle.api.tasks.compile.JavaCompile
  */
 class PartialBuildPlugin implements Plugin<Project> {
 
+    private static final Logger LOG = Logging.getLogger(PartialBuildPlugin.class)
+
     Project project
 
     @Override
@@ -26,7 +31,7 @@ class PartialBuildPlugin implements Plugin<Project> {
 
         project.afterEvaluate {
             if (!project.hasProperty("android")) {
-                project.println("${project.path}:partialBuildPlugin Plugin must work with Android plugin")
+                LOG.error("{}:partialBuildPlugin Plugin can only work with Android plugin", project.path)
                 return
             }
 
@@ -40,7 +45,7 @@ class PartialBuildPlugin implements Plugin<Project> {
     }
 
     void createPartialBuildTask(ApplicationVariantImpl variant) {
-        project.println("${project.path}:partialBuildPlugin Start creating partial build task for ${variant.name}")
+        LOG.info("${project.path}:partialBuildPlugin Start creating partial build task for ${variant.name}")
         FileMonitor monitor = new FileMonitor(project, "partial-build/${variant.dirName}")
         PartialJavaCompilerTask task = project.tasks.create("partial${variant.name.capitalize()}JavaWithJavac", PartialJavaCompilerTask)
         task.monitor = monitor

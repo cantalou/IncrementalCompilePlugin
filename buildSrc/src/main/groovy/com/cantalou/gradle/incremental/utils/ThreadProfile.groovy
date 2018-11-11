@@ -1,8 +1,12 @@
 package com.cantalou.gradle.incremental.utils
 
 import org.gradle.api.Project
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
 
 class ThreadProfile {
+
+    private static final Logger LOG = Logging.getLogger(ThreadProfile.class);
 
     static final String PROPERTIES_FILE_NAME = "local.properties"
 
@@ -74,14 +78,14 @@ class ThreadProfile {
         }
 
         if (duration < info.duration) {
-            project.println "ThreadProfile: increase thread pool size to ${info.threadSize}"
+            LOG.info("ThreadProfile: increase thread pool size to ${info.threadSize}")
             properties.setProperty("fileMonitor.profile", "${duration};${info.threadSize}")
         } else {
             info.threadSize = info.threadSize - THREAD_INCREMENT
             if (info.threadSize < DEFAULT_THREAD_NUM) {
                 info.threadSize = DEFAULT_THREAD_NUM
             }
-            project.println "ThreadProfile: decrease thread pool size to ${info.threadSize}"
+            LOG.info("ThreadProfile: decrease thread pool size to ${info.threadSize}")
             properties.setProperty("fileMonitor.profile", "${info.duration};${info.threadSize}")
         }
         project.rootProject.file(PROPERTIES_FILE_NAME).withWriter("UTF-8") { out ->

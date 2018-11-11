@@ -1,10 +1,14 @@
 package com.cantalou.gradle.incremental.utils
 
 import org.gradle.api.Project
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
 
 import java.util.concurrent.*
 
 class FileMonitor {
+
+    private static final Logger LOG = Logging.getLogger(FileMonitor.class)
 
     static final String lineSeparator = ";"
 
@@ -46,7 +50,7 @@ class FileMonitor {
         }
 
         long start = System.currentTimeMillis()
-        project.println "FileMonitor: Start to check java resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}"
+        LOG.info("FileMonitor: Start to check java resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
         List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
 
         def threadProfile = new ThreadProfile(project)
@@ -67,7 +71,7 @@ class FileMonitor {
                         String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
                         if (isModified(file, infoStr)) {
                             if (!isCleanCheck) {
-                                project.println "FileMonitor: Detect file modified ${file}"
+                                LOG.info("FileMonitor: Detect file modified ${file}")
                             }
                             newResourcesLastModifiedMap.put(file.absolutePath, file.absolutePath + lineSeparator + file.lastModified() + lineSeparator + uniqueId(file))
                         }
@@ -80,7 +84,7 @@ class FileMonitor {
         if (profile) {
             threadProfile.updateProfile(duration)
         }
-        project.println "FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms"
+        LOG.info("FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
     }
 
     List<String> getModifiedFile() {
@@ -90,7 +94,7 @@ class FileMonitor {
     boolean isModified(File file, String infoStr) {
         if (infoStr == null || infoStr.length() == 0) {
             if (!isCleanCheck) {
-                project.println "infoStr empty"
+                LOG.info("infoStr empty")
             }
             return true
         }
@@ -107,8 +111,8 @@ class FileMonitor {
         }
 
         if (!isCleanCheck) {
-            project.println "FileMonitor: infoStr lastModified ${infos[1]},length:${infos[2]}"
-            project.println "FileMonitor: file    lastModified ${fileModified}, hashcode:${uniqueId}"
+            LOG.debug("FileMonitor: infoStr lastModified ${infos[1]},length:${infos[2]}")
+            LOG.debug("FileMonitor: file    lastModified ${fileModified}, hashcode:${uniqueId}")
         }
         return true
     }
@@ -124,7 +128,7 @@ class FileMonitor {
                 writer.println(v)
             }
         }
-        project.println "FileMonitor: Update java resources modified info"
+        LOG.info("FileMonitor: Update java resources modified info")
     }
 
 

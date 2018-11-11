@@ -3,13 +3,14 @@ package com.cantalou.gradle.incremental.tasks
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.incremental.utils.FileMonitor
-import com.cantalou.gradle.incremental.utils.JarMerger
 import com.cantalou.gradle.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
+import org.gradle.api.logging.Logger
+import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
@@ -27,6 +28,8 @@ import java.util.regex.Pattern
  *
  */
 class PartialJavaCompilerTask extends DefaultTask {
+
+    private static final Logger LOG = Logging.getLogger(PartialJavaCompilerTask.class)
 
     FileMonitor monitor
 
@@ -53,38 +56,33 @@ class PartialJavaCompilerTask extends DefaultTask {
         return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}")
     }
 
-    @OutputFile
-    File getCombineJar() {
-        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}/combine.jar")
-    }
-
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
-            project.println("${project.path}:${getName()} ouput dir is null , need full recompile")
+            LOG.lifecycle("${project.path}:${getName()} ouput dir is null , need full recompile")
             fullCompileCallback()
             return
         }
         monitor.detectModified([getGenerateDir()], false)
         changedFiles = monitor.getModifiedFile()
-        project.println("${project.path}:${getName()} file need to be recompile: ")
+        LOG.lifecycle("${project.path}:${getName()} file need to be recompile: ")
         changedFiles.each {
-            project.println it
+            LOG.lifecycle(it.toString())
         }
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
-            project.println("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
+            LOG.lifecycle("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
             fullCompileCallback()
             return
         }
 
         if (changedFiles == null || changedFiles.isEmpty()) {
-            project.println("${project.path}:${getName()} UP-TO-DATE")
+            LOG.lifecycle("${project.path}:${getName()} UP-TO-DATE")
             javaCompiler.enabled = false
-            project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+            LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
             return
         }
 
@@ -118,21 +116,19 @@ class PartialJavaCompilerTask extends DefaultTask {
         for (Class preCompileClazz : preCompileClasses) {
             Class partialCompileClazz = partialClassloader.loadClass(preCompileClazz.name)
             if (checkFullCompile(preCompileClazz, partialCompileClazz)) {
-                project.println("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+                LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
                 return
             }
         }
 
         javaCompiler.enabled = false
-        project.println("${project.path}:${getName()} change ${javaCompiler}.enable=false")
-        createProjectCompileJar(getName())
+        LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
     }
 
     void fullCompileCallback() {
         javaCompiler.doLast {
             if (javaCompiler.state.didWork) {
                 monitor.updateResourcesModified()
-                createProjectCompileJar(javaCompiler.name)
             } else {
                 // monitor.clearCache()
             }
@@ -167,7 +163,6 @@ class PartialJavaCompilerTask extends DefaultTask {
         spec.setWorkingDir(getProject().getProjectDir())
         spec.setTempDir(javaCompiler.getTemporaryDir())
         List<File> classpath = javaCompiler.getClasspath().asList()
-        classpath << getCombineJar()
         classpath << javaCompiler.destinationDir
         spec.setCompileClasspath(classpath)
         spec.setAnnotationProcessorPath(ImmutableList.copyOf(javaCompiler.getEffectiveAnnotationProcessorPath()))
@@ -208,25 +203,16 @@ class PartialJavaCompilerTask extends DefaultTask {
                 Field partialField = partialCompileClazz.getDeclaredField(preField.name)
                 partialField.setAccessible(true)
                 if (!preField.get(null).equals(partialField.get(null))) {
-                    project.println("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${partialField.get(null)}")
+                    LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${partialField.get(null)}")
                     return true
                 }
             } catch (NoSuchFieldException e) {
-                project.println("${project.path}:${getName()} field '${preField.name}' was missing from ${partialCompileClazz.name}")
+                LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was missing from ${partialCompileClazz.name}")
                 return true
             }
         }
 
         return false
-    }
-
-    void createProjectCompileJar(String name) {
-        File destJar = getCombineJar()
-        destJar.getParentFile().mkdirs()
-        JarMerger merger = new JarMerger(destJar)
-        merger.addFolder(javaCompiler.destinationDir)
-        merger.close()
-        project.println("${project.path}:${name} crate ${destJar}")
     }
 }
 
