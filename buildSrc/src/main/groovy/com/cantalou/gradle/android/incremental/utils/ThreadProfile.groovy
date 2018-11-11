@@ -1,4 +1,4 @@
-package com.cantalou.gradle.incremental.utils
+package com.cantalou.gradle.android.incremental.utils
 
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
@@ -89,7 +89,7 @@ class ThreadProfile {
             properties.setProperty("fileMonitor.profile", "${info.duration};${info.threadSize}")
         }
         project.rootProject.file(PROPERTIES_FILE_NAME).withWriter("UTF-8") { out ->
-            properties.store(out, "Thread Profile Info")
+            properties.store(out, "")
         }
     }
 }

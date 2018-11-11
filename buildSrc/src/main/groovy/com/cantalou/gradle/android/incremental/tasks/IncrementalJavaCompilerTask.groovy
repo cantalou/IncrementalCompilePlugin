@@ -1,9 +1,8 @@
-package com.cantalou.gradle.incremental.tasks
+package com.cantalou.gradle.android.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
-import com.cantalou.gradle.incremental.utils.FileMonitor
-import com.cantalou.gradle.incremental.utils.Ref
+import com.cantalou.gradle.android.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
@@ -27,11 +26,11 @@ import java.util.regex.Pattern
  * @date 2018年11月01日 16:09
  *
  */
-class PartialJavaCompilerTask extends DefaultTask {
+class IncrementalJavaCompilerTask extends DefaultTask {
 
-    private static final Logger LOG = Logging.getLogger(PartialJavaCompilerTask.class)
+    private static final Logger LOG = Logging.getLogger(IncrementalJavaCompilerTask.class)
 
-    FileMonitor monitor
+    com.cantalou.gradle.android.incremental.utils.FileMonitor monitor
 
     List<String> changedFiles = new ArrayList<>()
 
@@ -53,7 +52,7 @@ class PartialJavaCompilerTask extends DefaultTask {
 
     @OutputDirectory
     File getCompileOutputs() {
-        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/partial/${variant.dirName}")
+        return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/incremental/${variant.dirName}")
     }
 
     @TaskAction
@@ -114,10 +113,10 @@ class PartialJavaCompilerTask extends DefaultTask {
         DefaultJavaCompileSpec spec = createSpec()
         performCompilation(spec, createCompiler(spec))
 
-        URLClassLoader partialClassloader = new URLClassLoader(classpath)
+        URLClassLoader incrementalClassloader = new URLClassLoader(classpath)
         for (Class preCompileClazz : preCompileClasses) {
-            Class partialCompileClazz = partialClassloader.loadClass(preCompileClazz.name)
-            if (checkFullCompile(preCompileClazz, partialCompileClazz)) {
+            Class incrementalCompileClazz = incrementalClassloader.loadClass(preCompileClazz.name)
+            if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
                 LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
                 return
             }
@@ -189,7 +188,7 @@ class PartialJavaCompilerTask extends DefaultTask {
         return parts.join(".")
     }
 
-    boolean checkFullCompile(Class preCompileClazz, Class partialCompileClazz) {
+    boolean checkFullCompile(Class preCompileClazz, Class incrementalCompileClazz) {
         int modifierFlag = Modifier.STATIC | Modifier.FINAL
         def preCompileFields = preCompileClazz.getDeclaredFields()
         for (Field preField : preCompileFields) {
@@ -202,14 +201,14 @@ class PartialJavaCompilerTask extends DefaultTask {
                 continue
             }
             try {
-                Field partialField = partialCompileClazz.getDeclaredField(preField.name)
-                partialField.setAccessible(true)
-                if (!preField.get(null).equals(partialField.get(null))) {
-                    LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${partialField.get(null)}")
+                Field incrementalField = incrementalCompileClazz.getDeclaredField(preField.name)
+                incrementalField.setAccessible(true)
+                if (!preField.get(null).equals(incrementalField.get(null))) {
+                    LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${incrementalField.get(null)}")
                     return true
                 }
             } catch (NoSuchFieldException e) {
-                LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was missing from ${partialCompileClazz.name}")
+                LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was missing from ${incrementalCompileClazz.name}")
                 return true
             }
         }

@@ -1,5 +1,5 @@
 apply plugin: 'com.android.application'
-apply plugin: com.cantalou.gradle.incremental.PartialBuildPlugin
+apply plugin: com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
 
 android {
     compileSdkVersion 27
