@@ -15,6 +15,11 @@ public class Utils
 
     public static int get()
     {
-        return 2336;
+        return 0;
+    }
+
+    public static int get1()
+    {
+        return 1;
     }
 }

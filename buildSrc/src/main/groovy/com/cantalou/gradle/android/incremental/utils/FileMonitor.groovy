@@ -80,6 +80,7 @@ class FileMonitor {
             })
         }
         service.awaitTermination(50, TimeUnit.MILLISECONDS)
+        service.shutdown()
         int duration = System.currentTimeMillis() - start
         if (profile) {
             threadProfile.updateProfile(duration)
