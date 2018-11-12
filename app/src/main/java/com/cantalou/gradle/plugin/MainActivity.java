@@ -16,7 +16,7 @@ public class MainActivity extends Activity {
     public void testChange() {
 
         TextView value1 = findViewById(R.id.value1);
-        value1.setText("Value from MainActivity :" + 8);
+        value1.setText("Value from MainActivity :" + 9);
 
 
         TextView value2 = findViewById(R.id.value2);

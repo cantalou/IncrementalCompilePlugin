@@ -2,6 +2,7 @@ package com.cantalou.gradle.android.incremental
 
 import com.android.build.gradle.AndroidConfig
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
+import com.android.builder.core.DefaultApiVersion
 import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
 import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
@@ -9,6 +10,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
+import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.compile.JavaCompile
 
 /**
@@ -25,10 +27,18 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
     Project project
 
+    int deviceSdkVersion = -1
+
+    boolean isApplyBeforeAndroid = true
+
     @Override
     void apply(Project project) {
 
         this.project = project
+
+        if (project.hasProperty("android")) {
+            isApplyBeforeAndroid = false
+        }
 
         project.getExtensions().add(IncrementalExtension.NAME, IncrementalExtension)
 
@@ -38,12 +48,14 @@ class IncrementalBuildPlugin implements Plugin<Project> {
                 return
             }
 
+            checkMinSdk()
+            enablePreDexLibraries()
+
             project.android.applicationVariants.all { ApplicationVariantImpl variant ->
                 if (!canIncrementalBuild(variant)) {
                     return
                 }
                 createIncrementalBuildTask(variant)
-                enablePreDexLibraries(variant)
             }
         }
     }
@@ -83,18 +95,35 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         return javaCompileTask.getSource().getFiles()
     }
 
-    void enablePreDexLibraries(ApplicationVariantImpl variant) {
+    void enablePreDexLibraries() {
         IncrementalExtension extension = project.getExtensions().getByName(IncrementalExtension.NAME)
-        if (extension == null || !extension.autoPreDex) {
+        if (extension != null && !extension.autoPreDex || deviceSdkVersion < 21) {
+            return
+        }
+        if (!isApplyBeforeAndroid) {
+            LOG.warn("${project.path}:incrementalBuildPlugin You must apply this plugin before plugin: 'com.android.application' in build.gradle")
+        }
+        project.android.dexOptions.preDexLibraries = true
+        LOG.info("${project.path}:incrementalBuildPlugin enable android.dexOptions.preDexLibraries = true")
+    }
+
+    void checkMinSdk() {
+
+        if (deviceSdkVersion > 0) {
             return
         }
 
         String sdkInfo = "adb shell getprop ro.build.version.sdk".execute().getText().trim()
-        if(sdkInfo.matches("\\d+") &&  sdkInfo.toInteger() > 21){
-            AndroidConfig androidExtension = variant.variantData.scope.globalScope.extension
-            androidExtension.dexOptions.preDexLibraries = true
-            variant.variantData.androidConfig.dexOptions.preDexLibraries = true
-            LOG.info("${project.path}:incrementalBuildPlugin enable androidConfig.dexOptions.preDexLibraries = true")
+        if (sdkInfo.matches("\\d+")) {
+            deviceSdkVersion = sdkInfo.toInteger()
         }
+
+        if (deviceSdkVersion < 21) {
+            return
+        }
+
+        project.android.defaultConfig.minSdkVersion = 21
+        LOG.info("${project.path}:incrementalBuildPlugin chage android.defaultConfig.minSdkVerion = 21")
     }
+
 }
