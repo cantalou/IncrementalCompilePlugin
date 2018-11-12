@@ -41,7 +41,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
         project.afterEvaluate {
             if (!project.hasProperty("android")) {
-                LOG.error("{}:incrementalBuildPlugin Plugin can only work with Android plugin", project.path)
+                project.println("${project.path}:incrementalBuildPlugin Plugin can only work with Android plugin")
                 return
             }
 
@@ -102,7 +102,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
             return
         }
         if (!isApplyBeforeAndroid) {
-            LOG.warn("${project.path}:incrementalBuildPlugin You must apply this plugin before plugin: 'com.android.application' in build.gradle")
+            project.println("${project.path}:incrementalBuildPlugin You must apply this plugin before plugin: 'com.android.application' in build.gradle")
         }
         project.android.dexOptions.preDexLibraries = true
         LOG.info("${project.path}:incrementalBuildPlugin enable android.dexOptions.preDexLibraries = true")
