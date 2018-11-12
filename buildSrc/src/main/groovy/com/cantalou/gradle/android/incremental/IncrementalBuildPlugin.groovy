@@ -1,6 +1,8 @@
 package com.cantalou.gradle.android.incremental
 
+import com.android.build.gradle.AndroidConfig
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
+import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
 import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import org.gradle.api.Plugin
@@ -28,6 +30,8 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
         this.project = project
 
+        project.getExtensions().add(IncrementalExtension.NAME, IncrementalExtension)
+
         project.afterEvaluate {
             if (!project.hasProperty("android")) {
                 LOG.error("{}:incrementalBuildPlugin Plugin can only work with Android plugin", project.path)
@@ -39,6 +43,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
                     return
                 }
                 createIncrementalBuildTask(variant)
+                enablePreDexLibraries(variant)
             }
         }
     }
@@ -76,5 +81,20 @@ class IncrementalBuildPlugin implements Plugin<Project> {
     Collection<File> getSourceFiles(ApplicationVariantImpl variant) {
         JavaCompile javaCompileTask = variant.javaCompiler
         return javaCompileTask.getSource().getFiles()
+    }
+
+    void enablePreDexLibraries(ApplicationVariantImpl variant) {
+        IncrementalExtension extension = project.getExtensions().getByName(IncrementalExtension.NAME)
+        if (extension == null || !extension.autoPreDex) {
+            return
+        }
+
+        String sdkInfo = "adb shell getprop ro.build.version.sdk".execute().getText().trim()
+        if(sdkInfo.matches("\\d+") &&  sdkInfo.toInteger() > 21){
+            AndroidConfig androidExtension = variant.variantData.scope.globalScope.extension
+            androidExtension.dexOptions.preDexLibraries = true
+            variant.variantData.androidConfig.dexOptions.preDexLibraries = true
+            LOG.info("${project.path}:incrementalBuildPlugin enable androidConfig.dexOptions.preDexLibraries = true")
+        }
     }
 }
