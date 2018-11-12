@@ -211,8 +211,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             if ((preField.modifiers & modifierFlag) != modifierFlag) {
                 continue
             }
-            def type = preField.getType()
-            if (!(type.isPrimitive() || type.equals(String.class))) {
+            Class type = preField.getType()
+            if (!(type.isPrimitive() || type == String.class)) {
                 continue
             }
             try {

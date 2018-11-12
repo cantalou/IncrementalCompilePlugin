@@ -5,5 +5,4 @@ apply from: 'publish.gradle'
 dependencies {
     compile gradleApi()
     compile localGroovy()
-    compile 'com.android.tools.build:gradle:2.2.3'
 }
