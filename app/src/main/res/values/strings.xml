@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">IncrementalCompilePlugin</string>
+    <string name="app_name1">IncrementalCompilePlugin1</string>
+    <string name="app_name2">IncrementalCompilePlugin1</string>
 </resources>

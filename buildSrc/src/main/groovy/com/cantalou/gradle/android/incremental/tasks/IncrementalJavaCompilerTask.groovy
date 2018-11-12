@@ -99,19 +99,34 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         def classpath = jars.toArray(new URL[0])
         def preCompileClasses = []
         URLClassLoader preClassloader = new URLClassLoader(classpath)
-        changedFiles.each { String modifiedFile ->
+        for (int i = 0; i < changedFiles.size(); i++) {
+            String modifiedFile = changedFiles.get(i)
             for (int j = 0; j < sourceDirPaths.size(); j++) {
                 String sourcePath = sourceDirPaths.get(j)
                 String className = convertClassName(sourcePath, modifiedFile)
                 if (className != null) {
-                    preCompileClasses << preClassloader.loadClass(className)
+                    try {
+                        preCompileClasses << preClassloader.loadClass(className)
+                    } catch (ClassNotFoundException e) {
+                    }
                     break
                 }
             }
         }
 
-        DefaultJavaCompileSpec spec = createSpec()
-        performCompilation(spec, createCompiler(spec))
+
+        try {
+            DefaultJavaCompileSpec spec = createSpec()
+            performCompilation(spec, createCompiler(spec))
+        } catch (Throwable e) {
+            LOG.lifecycle("${project.path}:${getName()} incremental compile error ", e)
+            return
+        }
+
+        if(!getDidWork()){
+            LOG.lifecycle("${project.path}:${getName()} getDidWork return false, need full compile")
+            return
+        }
 
         URLClassLoader incrementalClassloader = new URLClassLoader(classpath)
         for (Class preCompileClazz : preCompileClasses) {
@@ -131,7 +146,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             if (javaCompiler.state.didWork) {
                 monitor.updateResourcesModified()
             } else {
-                // monitor.clearCache()
+                monitor.clearCache()
             }
         }
     }

@@ -1,8 +1,6 @@
 package com.cantalou.gradle.android.incremental
 
-import com.android.build.gradle.AndroidConfig
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
-import com.android.builder.core.DefaultApiVersion
 import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
 import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
@@ -10,7 +8,6 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
-import org.gradle.api.tasks.StopExecutionException
 import org.gradle.api.tasks.compile.JavaCompile
 
 /**
@@ -74,6 +71,10 @@ class IncrementalBuildPlugin implements Plugin<Project> {
             if (taskGraph.getAllTasks().any { it.name.startsWith("assemble") }) {
                 Thread.start {
                     monitor.detectModified(getSourceFiles(variant), true)
+                }
+                def safeguardTask = project.tasks.getByName("incremental${variant.name.capitalize()}JavaCompilationSafeguard")
+                if (safeguardTask != null) {
+                    safeguardTask.enabled = false
                 }
             }
         }

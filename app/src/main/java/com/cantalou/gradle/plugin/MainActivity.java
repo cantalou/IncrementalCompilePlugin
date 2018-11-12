@@ -15,6 +15,9 @@ public class MainActivity extends Activity {
 
     public void testChange() {
 
+        TextView value0 = findViewById(R.id.value3);
+        value0.setText("app name :" + getString(R.string.app_name1));
+
         TextView value1 = findViewById(R.id.value1);
         value1.setText("Value from MainActivity :" + 9);
 
