@@ -8,7 +8,6 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger
 import org.gradle.api.logging.Logging
-import org.gradle.api.tasks.compile.JavaCompile
 
 /**
  * By default, Gradle will disable incremental compile with javac when a modified java source contains constant field,
@@ -60,25 +59,23 @@ class IncrementalBuildPlugin implements Plugin<Project> {
     void createIncrementalBuildTask(ApplicationVariantImpl variant) {
         LOG.info("${project.path}:incrementalBuildPlugin Start creating incremental build task for ${variant.name}")
 
-        IncrementalJavaCompilerTask task = project.tasks.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
+        def taskContainer = project.tasks
+
+        IncrementalJavaCompilerTask task = taskContainer.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
         task.variant = variant
         task.javaCompiler = variant.javaCompiler
         task.outputs.upToDateWhen { false }
+        task.monitor = new FileMonitor(project, task.getIncrementalOutputs())
         variant.javaCompiler.dependsOn task
 
-        FileMonitor monitor = new FileMonitor(project, task.getIncrementalOutputs())
-        task.monitor = monitor
+        def safeguardTask = taskContainer.getByName("incremental${variant.name.capitalize()}JavaCompilationSafeguard")
+        if (safeguardTask != null) {
+            safeguardTask.enabled = false
+        }
 
         def taskGraph = project.gradle.taskGraph
         taskGraph.whenReady {
             if (taskGraph.getAllTasks().any { it.name.startsWith("assemble") }) {
-                Thread.start {
-                    monitor.detectModified(getSourceFiles(variant.javaCompiler), true)
-                }
-                def safeguardTask = project.tasks.getByName("incremental${variant.name.capitalize()}JavaCompilationSafeguard")
-                if (safeguardTask != null) {
-                    safeguardTask.enabled = false
-                }
             }
         }
     }

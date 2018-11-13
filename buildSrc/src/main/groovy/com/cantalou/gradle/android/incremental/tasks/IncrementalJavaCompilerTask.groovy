@@ -2,6 +2,7 @@ package com.cantalou.gradle.android.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
+import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import com.cantalou.gradle.android.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
@@ -29,13 +30,13 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
     private static final Logger LOG = Logging.getLogger(IncrementalJavaCompilerTask.class)
 
-    com.cantalou.gradle.android.incremental.utils.FileMonitor monitor
-
     List<String> changedFiles = new ArrayList<>()
 
     ApplicationVariantImpl variant
 
     JavaCompile javaCompiler
+
+    FileMonitor monitor
 
     @InputFiles
     @SkipWhenEmpty
@@ -62,7 +63,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
-        monitor.detectModified([getGenerateDir()], false)
+        detectSourceFiles()
+        detectGeneratedSource()
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
@@ -115,53 +117,64 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        def preClasspath = javaCompiler.classpath.getFiles().collect { it.toURL() }
-        preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
-        preClasspath << javaCompiler.destinationDir.toURL()
-        URLClassLoader preClassloader = new URLClassLoader(preClasspath.toArray(new URL[preClasspath.size()]))
+        try {
+            def preClasspath = javaCompiler.classpath.getFiles().collect { it.toURL() }
+            preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
+            preClasspath << javaCompiler.destinationDir.toURL()
+            URLClassLoader preClassloader = new URLClassLoader(preClasspath.toArray(new URL[preClasspath.size()]))
 
-        URLClassLoader incrementalClassloader = new URLClassLoader([incrementalClassesOutputs.toURL()].toArray(new URL[1]), preClassloader) {
-            @Override
-            Class<?> loadClass(String s) throws ClassNotFoundException {
-                Class clazz = null;
-                try {
-                    clazz = this.findClass(s)
-                } catch (ClassNotFoundException var10) {
+            URLClassLoader incrementalClassloader = new URLClassLoader([incrementalClassesOutputs.toURL()].toArray(new URL[1]), preClassloader) {
+                @Override
+                Class<?> loadClass(String s) throws ClassNotFoundException {
+                    Class clazz = null;
+                    try {
+                        clazz = this.findClass(s)
+                    } catch (ClassNotFoundException var10) {
+                    }
+                    return clazz != null ? clazz : super.loadClass(s)
                 }
-                return clazz != null ? clazz : super.loadClass(s)
             }
-        }
 
-        def incrementalClasses = []
-        def classDirPath = incrementalClassesOutputs.absolutePath
-        incrementalClassesOutputs.eachFileRecurse { File classFile ->
-            if(!classFile.name.endsWith(".class")){
-                return
-            }
-            String sourcePath = classFile.absolutePath
-            String className = sourcePath.substring(classDirPath.length() + 1, sourcePath.lastIndexOf(".")).replace(File.separatorChar, (char)'.')
-            incrementalClasses << incrementalClassloader.loadClass(className)
-        }
-
-        for (Class incrementalCompileClazz : incrementalClasses) {
-            try {
-                project.println "load class ${incrementalCompileClazz} ${incrementalCompileClazz.name}"
-                Class preCompileClazz = preClassloader.loadClass(incrementalCompileClazz.name)
-                if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
-                    LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+            def incrementalClasses = []
+            def classDirPath = incrementalClassesOutputs.absolutePath
+            incrementalClassesOutputs.eachFileRecurse { File classFile ->
+                if (!classFile.name.endsWith(".class")) {
                     return
                 }
-            } catch (ClassNotFoundException e) {
+                String sourcePath = classFile.absolutePath
+                String className = sourcePath.substring(classDirPath.length() + 1, sourcePath.lastIndexOf(".")).replace(File.separatorChar, (char) '.')
+                incrementalClasses << incrementalClassloader.loadClass(className)
             }
-        }
 
-        project.copy {
-            from incrementalClassesOutputs
-            into javaCompiler.destinationDir
-        }
+            for (Class incrementalCompileClazz : incrementalClasses) {
+                try {
+                    Class preCompileClazz = preClassloader.loadClass(incrementalCompileClazz.name)
+                    if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
+                        LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+                        return
+                    }
+                } catch (ClassNotFoundException e) {
+                }
+            }
 
-        javaCompiler.enabled = false
-        LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+            WorkResult result = project.copy {
+                from incrementalClassesOutputs
+                into javaCompiler.destinationDir
+            }
+            if(!result.didWork){
+                LOG.lifecycle("${project.path}:${getName()} failed to copy compiled class from ${incrementalClassesOutputs} to ${javaCompiler.destinationDir}")
+                return
+            }
+
+            javaCompiler.enabled = false
+            LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+        } catch (Throwable throwable) {
+            LOG.lifecycle("${project.path}:${getName()} error", throwable)
+        }
+    }
+
+    private detectGeneratedSource() {
+        monitor.detectModified([getGenerateDir()], false)
     }
 
     void fullCompileCallback() {
@@ -250,8 +263,9 @@ class IncrementalJavaCompilerTask extends DefaultTask {
      * @param variant
      * @return
      */
-    Collection<File> getSourceFiles(JavaCompile javaCompileTask) {
-        return javaCompileTask.getSource().getFiles()
+    void detectSourceFiles() {
+        Collection<File> sourceFiles = javaCompiler.getSource().getFiles()
+        monitor.detectModified(sourceFiles, true)
     }
 }
 
