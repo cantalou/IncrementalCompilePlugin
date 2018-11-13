@@ -73,10 +73,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
         monitor.detectModified([getGenerateDir()], false)
         changedFiles = monitor.getModifiedFile()
-        LOG.lifecycle("${project.path}:${getName()} file need to be recompile: ")
-        changedFiles.each {
-            LOG.lifecycle(it.toString())
-        }
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
@@ -90,6 +86,11 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             javaCompiler.enabled = false
             LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
             return
+        }
+
+        LOG.lifecycle("${project.path}:${getName()} file need to be recompile: ")
+        changedFiles.each {
+            LOG.lifecycle(it.toString())
         }
 
         def sourceDirPaths = []
