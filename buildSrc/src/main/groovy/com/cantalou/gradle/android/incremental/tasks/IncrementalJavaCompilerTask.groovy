@@ -98,6 +98,10 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             sourceDirPaths << it.getDir().absolutePath
         }
 
+        def incrementalClassesOutputs = getCompileClassesOutputs()
+        incrementalClassesOutputs.deleteDir()
+        incrementalClassesOutputs.mkdirs()
+
         try {
             DefaultJavaCompileSpec spec = createSpec()
             performCompilation(spec, createCompiler(spec))
@@ -116,7 +120,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         preClasspath << javaCompiler.destinationDir.toURL()
         URLClassLoader preClassloader = new URLClassLoader(preClasspath.toArray(new URL[preClasspath.size()]))
 
-        def incrementalClassesOutputs = getCompileClassesOutputs()
         URLClassLoader incrementalClassloader = new URLClassLoader([incrementalClassesOutputs.toURL()].toArray(new URL[1]), preClassloader) {
             @Override
             Class<?> loadClass(String s) throws ClassNotFoundException {
@@ -142,6 +145,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
         for (Class incrementalCompileClazz : incrementalClasses) {
             try {
+                project.println "load class ${incrementalCompileClazz} ${incrementalCompileClazz.name}"
                 Class preCompileClazz = preClassloader.loadClass(incrementalCompileClazz.name)
                 if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
                     LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
@@ -237,6 +241,17 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         }
 
         return false
+    }
+
+    /**
+     * Default implementation is to scan all java resource and check if they was modified or not.
+     * In feature version we will create background service to add file change monitor to system, then we can just handle the modified file async.
+     *
+     * @param variant
+     * @return
+     */
+    Collection<File> getSourceFiles(JavaCompile javaCompileTask) {
+        return javaCompileTask.getSource().getFiles()
     }
 }
 

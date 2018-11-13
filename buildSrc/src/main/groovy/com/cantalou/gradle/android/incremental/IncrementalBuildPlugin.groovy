@@ -63,6 +63,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         IncrementalJavaCompilerTask task = project.tasks.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
         task.variant = variant
         task.javaCompiler = variant.javaCompiler
+        task.outputs.upToDateWhen { false }
         variant.javaCompiler.dependsOn task
 
         FileMonitor monitor = new FileMonitor(project, task.getIncrementalOutputs())
@@ -72,7 +73,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         taskGraph.whenReady {
             if (taskGraph.getAllTasks().any { it.name.startsWith("assemble") }) {
                 Thread.start {
-                    monitor.detectModified(getSourceFiles(variant), true)
+                    monitor.detectModified(getSourceFiles(variant.javaCompiler), true)
                 }
                 def safeguardTask = project.tasks.getByName("incremental${variant.name.capitalize()}JavaCompilationSafeguard")
                 if (safeguardTask != null) {
@@ -84,18 +85,6 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
     boolean canIncrementalBuild(ApplicationVariantImpl variant) {
         variant.buildType.name == "debug"
-    }
-
-    /**
-     * Default implementation is to scan all java resource and check if they was modified or not.
-     * In feature version we will create background service to add file change monitor to system, then we can just handle the modified file async.
-     *
-     * @param variant
-     * @return
-     */
-    Collection<File> getSourceFiles(ApplicationVariantImpl variant) {
-        JavaCompile javaCompileTask = variant.javaCompiler
-        return javaCompileTask.getSource().getFiles()
     }
 
     void enablePreDexLibraries() {
