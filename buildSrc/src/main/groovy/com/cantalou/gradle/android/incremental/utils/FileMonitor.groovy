@@ -18,19 +18,19 @@ class FileMonitor {
 
     Project project
 
-    File output
+    File outputDIr
 
     File resourcesLastModifiedFile
 
     boolean isCleanCheck
 
-    FileMonitor(Project project, String outputName) {
+    FileMonitor(Project project, File outputDir) {
         this.project = project
 
-        output = new File(project.buildDir, "intermediates/${outputName}")
-        output.mkdirs()
+        this.outputDIr = outputDir
+        outputDIr.mkdirs()
 
-        resourcesLastModifiedFile = new File(output, "resourcesLastModified.txt")
+        resourcesLastModifiedFile = new File(outputDIr, "resourcesLastModified.txt")
         Thread.start {
             if (!resourcesLastModifiedFile.exists()) {
                 return

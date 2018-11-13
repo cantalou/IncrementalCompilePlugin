@@ -19,7 +19,7 @@ public class MainActivity extends Activity {
         value0.setText("app name :" + getString(R.string.app_name6));
 
         TextView value01 = findViewById(R.id.value01);
-        value01.setText("app name :" + getString(R.string.app_name5));
+        value01.setText("app name :" + getString(R.string.app_name8));
 
         TextView value1 = findViewById(R.id.value1);
         value1.setText("Value from MainActivity :" + 112);

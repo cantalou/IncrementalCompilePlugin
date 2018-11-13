@@ -59,12 +59,14 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
     void createIncrementalBuildTask(ApplicationVariantImpl variant) {
         LOG.info("${project.path}:incrementalBuildPlugin Start creating incremental build task for ${variant.name}")
-        FileMonitor monitor = new FileMonitor(project, "incremental-build/${variant.dirName}")
+
         IncrementalJavaCompilerTask task = project.tasks.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
-        task.monitor = monitor
         task.variant = variant
         task.javaCompiler = variant.javaCompiler
         variant.javaCompiler.dependsOn task
+
+        FileMonitor monitor = new FileMonitor(project, task.getIncrementalOutputs())
+        task.monitor = monitor
 
         def taskGraph = project.gradle.taskGraph
         taskGraph.whenReady {

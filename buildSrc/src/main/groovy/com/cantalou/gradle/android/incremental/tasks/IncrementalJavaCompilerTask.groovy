@@ -19,7 +19,6 @@ import org.gradle.language.base.internal.compile.CompilerUtil
 
 import java.lang.reflect.Field
 import java.lang.reflect.Modifier
-import java.util.regex.Pattern
 
 /**
  *
@@ -51,8 +50,13 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     }
 
     @OutputDirectory
-    File getCompileOutputs() {
+    File getIncrementalOutputs() {
         return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/incremental/${variant.dirName}")
+    }
+
+    @OutputDirectory
+    File getCompileClassesOutputs() {
+        return new File(getIncrementalOutputs(), "classes")
     }
 
     @TaskAction
@@ -66,6 +70,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             fullCompileCallback()
             return
         }
+
         monitor.detectModified([getGenerateDir()], false)
         changedFiles = monitor.getModifiedFile()
         LOG.lifecycle("${project.path}:${getName()} file need to be recompile: ")
@@ -92,29 +97,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             sourceDirPaths << it.getDir().absolutePath
         }
 
-        def jars = javaCompiler.classpath.getFiles().collect { it.toURL() }
-        jars.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
-        jars << javaCompiler.destinationDir.toURL()
-
-        def classpath = jars.toArray(new URL[0])
-        def preCompileClasses = []
-        URLClassLoader preClassloader = new URLClassLoader(classpath)
-        for (int i = 0; i < changedFiles.size(); i++) {
-            String modifiedFile = changedFiles.get(i)
-            for (int j = 0; j < sourceDirPaths.size(); j++) {
-                String sourcePath = sourceDirPaths.get(j)
-                String className = convertClassName(sourcePath, modifiedFile)
-                if (className != null) {
-                    try {
-                        preCompileClasses << preClassloader.loadClass(className)
-                    } catch (ClassNotFoundException e) {
-                    }
-                    break
-                }
-            }
-        }
-
-
         try {
             DefaultJavaCompileSpec spec = createSpec()
             performCompilation(spec, createCompiler(spec))
@@ -123,18 +105,54 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        if(!getDidWork()){
+        if (!getDidWork()) {
             LOG.lifecycle("${project.path}:${getName()} getDidWork return false, need full compile")
             return
         }
 
-        URLClassLoader incrementalClassloader = new URLClassLoader(classpath)
-        for (Class preCompileClazz : preCompileClasses) {
-            Class incrementalCompileClazz = incrementalClassloader.loadClass(preCompileClazz.name)
-            if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
-                LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+        def preClasspath = javaCompiler.classpath.getFiles().collect { it.toURL() }
+        preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
+        preClasspath << javaCompiler.destinationDir.toURL()
+        URLClassLoader preClassloader = new URLClassLoader(preClasspath.toArray(new URL[preClasspath.size()]))
+
+        def incrementalClassesOutputs = getCompileClassesOutputs()
+        URLClassLoader incrementalClassloader = new URLClassLoader([incrementalClassesOutputs.toURL()].toArray(new URL[1]), preClassloader) {
+            @Override
+            Class<?> loadClass(String s) throws ClassNotFoundException {
+                Class clazz = null;
+                try {
+                    clazz = this.findClass(s)
+                } catch (ClassNotFoundException var10) {
+                }
+                return clazz != null ? clazz : super.loadClass(s)
+            }
+        }
+
+        def incrementalClasses = []
+        def classDirPath = incrementalClassesOutputs.absolutePath
+        incrementalClassesOutputs.eachFileRecurse { File classFile ->
+            if(!classFile.name.endsWith(".class")){
                 return
             }
+            String sourcePath = classFile.absolutePath
+            String className = sourcePath.substring(classDirPath.length() + 1, sourcePath.lastIndexOf(".")).replace(File.separatorChar, (char)'.')
+            incrementalClasses << incrementalClassloader.loadClass(className)
+        }
+
+        for (Class incrementalCompileClazz : incrementalClasses) {
+            try {
+                Class preCompileClazz = preClassloader.loadClass(incrementalCompileClazz.name)
+                if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
+                    LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
+                    return
+                }
+            } catch (ClassNotFoundException e) {
+            }
+        }
+
+        project.copy {
+            from incrementalClassesOutputs
+            into javaCompiler.destinationDir
         }
 
         javaCompiler.enabled = false
@@ -175,7 +193,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     DefaultJavaCompileSpec createSpec() {
         DefaultJavaCompileSpec spec = new DefaultJavaCompileSpecFactory(javaCompiler.getOptions()).create();
         spec.setSource(getProject().files(changedFiles.toArray()))
-        spec.setDestinationDir(javaCompiler.destinationDir)
+        spec.setDestinationDir(getCompileClassesOutputs())
         spec.setWorkingDir(getProject().getProjectDir())
         spec.setTempDir(javaCompiler.getTemporaryDir())
         List<File> classpath = javaCompiler.getClasspath().asList()
@@ -188,19 +206,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return spec
     }
 
-    String convertClassName(String sourcePath, String modifiedFile) {
-        String className = modifiedFile.replace(sourcePath, "")
-        if (className.length() == modifiedFile.length()) {
-            return null
-        }
-
-        if (className.startsWith(File.separator)) {
-            className = className.substring(1)
-        }
-
-        String[] parts = className.split(Pattern.quote(File.separator))
-        parts[parts.length - 1] = new File(modifiedFile).name.replace(".java", "")
-        return parts.join(".")
+    String convertClassName(String sourcePath, String dirPath) {
+        return sourcePath.substring(dirPath.length(), sourcePath.lastIndexOf("."))
     }
 
     boolean checkFullCompile(Class preCompileClazz, Class incrementalCompileClazz) {

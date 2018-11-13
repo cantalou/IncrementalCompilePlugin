@@ -1,6 +1,7 @@
 <resources>
     <string name="app_name">IncrementalCompilePlugin</string>
-    <string name="app_name4">IncrementalCompilePlugin44</string>
-    <string name="app_name5">IncrementalCompilePlugin55</string>
-    <string name="app_name6">IncrementalCompilePlugin66</string>
+    <string name="app_name5">IncrementalCompilePlugin51</string>
+    <string name="app_name6">IncrementalCompilePlugin61</string>
+    <string name="app_name7">IncrementalCompilePlugin77</string>
+    <string name="app_name8">IncrementalCompilePlugin88</string>
 </resources>

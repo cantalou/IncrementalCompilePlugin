@@ -7,7 +7,7 @@ package com.cantalou.gradle.plugin;
 public class NewClass {
 
     public static String newMethod(){
-        return "newMethod";
+        return "newMethod123";
     }
 
 }
