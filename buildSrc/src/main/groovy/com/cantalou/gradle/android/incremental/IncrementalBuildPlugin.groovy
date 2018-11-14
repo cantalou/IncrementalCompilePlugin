@@ -64,7 +64,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         IncrementalJavaCompilerTask task = taskContainer.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
         task.variant = variant
         task.javaCompiler = variant.javaCompiler
-        task.outputs.upToDateWhen { false }
+        //task.outputs.upToDateWhen { false }
         task.monitor = new FileMonitor(project, task.getIncrementalOutputs())
         variant.javaCompiler.dependsOn task
 

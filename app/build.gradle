@@ -6,7 +6,7 @@ android {
     buildToolsVersion "28.0.2"
     defaultConfig {
         applicationId "com.cantalou.gradle.plugin"
-        minSdkVersion 14
+        minSdkVersion 22
         targetSdkVersion 27
         versionCode 1
         versionName "1.0"

@@ -15,11 +15,11 @@ public class Utils
 
     public static int get()
     {
-        return 0;
+        return 1;
     }
 
     public static int get1()
     {
-        return 112;
+        return 0;
     }
 }

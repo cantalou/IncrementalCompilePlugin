@@ -5,7 +5,9 @@ import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import com.cantalou.gradle.android.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
+import org.gradle.api.Action
 import org.gradle.api.DefaultTask
+import org.gradle.api.file.FileTree
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
@@ -14,6 +16,8 @@ import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
+import org.gradle.api.tasks.incremental.InputFileDetails
+import org.gradle.internal.FileUtils
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
@@ -44,6 +48,18 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return monitor.getModifiedFile()
     }
 
+    /**
+     * Returns the source for this task, after the include and exclude patterns have been applied. Ignores source files which do not exist.
+     *
+     * @return The source.
+     */
+    @InputFiles
+    @SkipWhenEmpty
+    @PathSensitive(PathSensitivity.NAME_ONLY)
+    public FileTree getSource() {
+        return javaCompiler.getSource()
+    }
+
     @InputDirectory
     @SkipWhenEmpty
     File getGenerateDir() {
@@ -63,9 +79,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
-        detectSourceFiles()
-        detectGeneratedSource()
-
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             LOG.lifecycle("${project.path}:${getName()} ouput dir is null , need full recompile")
@@ -73,8 +86,32 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        monitor.detectModified([getGenerateDir()], false)
-        changedFiles = monitor.getModifiedFile()
+        boolean needFullCompile = false
+        inputs.outOfDate(new Action<InputFileDetails>() {
+            @Override
+            void execute(InputFileDetails inputFileDetails) {
+                if (needFullCompile) {
+                    return
+                }
+                def inputFile = inputFileDetails.getFile()
+                if (FileUtils.hasExtension(inputFile, ".java")) {
+                    if (!changedFiles.contains(inputFile.absolutePath)) {
+                        changedFiles << inputFile.absolutePath
+                    }
+                } else if (FileUtils.hasExtension(inputFile, ".jar")) {
+                    LOG.lifecycle("${project.path}:${getName()} dependency jar ${inputFile} was changed, need full recompile")
+                    needFullCompile = true
+                }
+            }
+        })
+        if (needFullCompile) {
+            fullCompileCallback()
+            return
+        }
+
+        //detectSourceFiles()
+        //detectGeneratedSource()
+        //changedFiles = monitor.getModifiedFile()
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
@@ -90,14 +127,9 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        LOG.lifecycle("${project.path}:${getName()} file need to be recompile: ")
+        LOG.lifecycle("${project.path}:${getName()} file need to be compile: ")
         changedFiles.each {
             LOG.lifecycle(it.toString())
-        }
-
-        def sourceDirPaths = []
-        Ref.getValue(javaCompiler, SourceTask.class, "source").each {
-            sourceDirPaths << it.getDir().absolutePath
         }
 
         def incrementalClassesOutputs = getCompileClassesOutputs()
@@ -162,7 +194,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                 into javaCompiler.destinationDir
             }
 
-            if(!result.didWork){
+            if (!result.didWork) {
                 LOG.lifecycle("${project.path}:${getName()} failed to copy compiled class from ${incrementalClassesOutputs} to ${javaCompiler.destinationDir}")
                 return
             }
