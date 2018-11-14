@@ -161,6 +161,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                 from incrementalClassesOutputs
                 into javaCompiler.destinationDir
             }
+
             if(!result.didWork){
                 LOG.lifecycle("${project.path}:${getName()} failed to copy compiled class from ${incrementalClassesOutputs} to ${javaCompiler.destinationDir}")
                 return
