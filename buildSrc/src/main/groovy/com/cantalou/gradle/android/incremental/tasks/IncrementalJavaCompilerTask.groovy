@@ -98,12 +98,13 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                     if (!changedFiles.contains(inputFile.absolutePath)) {
                         changedFiles << inputFile.absolutePath
                     }
-                } else if (FileUtils.hasExtension(inputFile, ".jar")) {
+                } else if (FileUtils.hasExtension(inputFile, ".jar") && monitor.detectModified(inputFile)) {
                     LOG.lifecycle("${project.path}:${getName()} dependency jar ${inputFile} was changed, need full recompile")
                     needFullCompile = true
                 }
             }
         })
+
         if (needFullCompile) {
             fullCompileCallback()
             return
@@ -206,10 +207,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         }
     }
 
-    private detectGeneratedSource() {
-        monitor.detectModified([getGenerateDir()], false)
-    }
-
     void fullCompileCallback() {
         javaCompiler.doLast {
             if (javaCompiler.state.didWork) {
@@ -257,10 +254,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return spec
     }
 
-    String convertClassName(String sourcePath, String dirPath) {
-        return sourcePath.substring(dirPath.length(), sourcePath.lastIndexOf("."))
-    }
-
     boolean checkFullCompile(Class preCompileClazz, Class incrementalCompileClazz) {
         int modifierFlag = Modifier.STATIC | Modifier.FINAL
         def preCompileFields = preCompileClazz.getDeclaredFields()
@@ -299,6 +292,10 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     void detectSourceFiles() {
         Collection<File> sourceFiles = javaCompiler.getSource().getFiles()
         monitor.detectModified(sourceFiles, true)
+    }
+
+    void detectGeneratedSource() {
+        monitor.detectModified([getGenerateDir()], false)
     }
 }
 

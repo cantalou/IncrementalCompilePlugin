@@ -24,41 +24,45 @@ class FileMonitor {
 
     boolean isCleanCheck
 
+    ExecutorService service
+
     FileMonitor(Project project, File outputDir) {
         this.project = project
-
         this.outputDIr = outputDir
-        outputDIr.mkdirs()
-
-        resourcesLastModifiedFile = new File(outputDIr, "resourcesLastModified.txt")
         Thread.start {
-            if (!resourcesLastModifiedFile.exists()) {
-                return
-            }
-            resourcesLastModifiedFile.eachLine("UTF-8") { String line ->
-                int firstIndex = line.indexOf(lineSeparator)
-                resourcesLastModifiedMap.put(line.substring(0, firstIndex), line)
-                isCleanCheck = resourcesLastModifiedMap.isEmpty()
-            }
+            init()
         }
     }
 
-    synchronized void detectModified(Collection<File> files, boolean profile) {
+    synchronized void init() {
+        resourcesLastModifiedFile = new File(outputDIr, "resourcesLastModified.txt")
+        if (!resourcesLastModifiedFile.exists()) {
+            return
+        }
+        outputDIr.mkdirs()
+        resourcesLastModifiedFile.eachLine("UTF-8") { String line ->
+            int firstIndex = line.indexOf(lineSeparator)
+            resourcesLastModifiedMap.put(line.substring(0, firstIndex), line)
+        }
+        isCleanCheck = resourcesLastModifiedMap.isEmpty()
+
+        service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 16)
+    }
+
+    synchronized boolean detectModified(Collection<File> files) {
 
         if (files == null || files.isEmpty()) {
             return
         }
 
         long start = System.currentTimeMillis()
-        LOG.info("FileMonitor: Start to check java resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
-        List<File> javaResourcesDir = new CopyOnWriteArrayList<>(files)
+        LOG.info("FileMonitor: Start to check resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
+        List<File> resourcesDir = new CopyOnWriteArrayList<>(files)
 
-        def threadProfile = new ThreadProfile(project)
-        ThreadProfile.Info info = threadProfile.loadInfo()
-        ExecutorService service = Executors.newFixedThreadPool(info.getThreadSize())
-        while (!javaResourcesDir.isEmpty()) {
-            final File file = javaResourcesDir.remove(0)
-            service.execute(new Runnable() {
+        List<Future> futures = new ArrayList<>()
+        while (!resourcesDir.isEmpty()) {
+            final File file = resourcesDir.remove(0)
+            futures << service.submit(new Runnable() {
                 @Override
                 void run() {
                     if (file.isDirectory()) {
@@ -66,26 +70,31 @@ class FileMonitor {
                         if (subFile == null) {
                             return
                         }
-                        javaResourcesDir.addAll(subFile)
+                        resourcesDir.addAll(subFile)
                     } else {
-                        String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
-                        if (isModified(file, infoStr)) {
-                            if (!isCleanCheck) {
-                                LOG.info("FileMonitor: Detect file modified ${file}")
-                            }
-                            newResourcesLastModifiedMap.put(file.absolutePath, file.absolutePath + lineSeparator + file.lastModified() + lineSeparator + uniqueId(file))
-                        }
+                        detectModified(file)
                     }
                 }
             })
         }
-        service.awaitTermination(50, TimeUnit.MILLISECONDS)
-        service.shutdown()
-        int duration = System.currentTimeMillis() - start
-        if (profile) {
-            threadProfile.updateProfile(duration)
+        futures.each {
+            it.get()
         }
-        LOG.info("FileMonitor: Check java resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
+        int duration = System.currentTimeMillis() - start
+        LOG.info("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
+        return !newResourcesLastModifiedMap.isEmpty()
+    }
+
+    synchronized boolean detectModified(File file) {
+        String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
+        if (isModified(file, infoStr)) {
+            if (!isCleanCheck) {
+                LOG.info("FileMonitor: Detect file modified ${file}")
+            }
+            newResourcesLastModifiedMap.put(file.absolutePath, file.absolutePath + lineSeparator + file.lastModified() + lineSeparator + uniqueId(file))
+            return true
+        }
+        return false
     }
 
     List<String> getModifiedFile() {
@@ -129,7 +138,7 @@ class FileMonitor {
                 writer.println(v)
             }
         }
-        LOG.info("FileMonitor: Update java resources modified info")
+        LOG.info("FileMonitor: Update resources modified info")
     }
 
 
@@ -139,5 +148,9 @@ class FileMonitor {
 
     void clearCache() {
         resourcesLastModifiedFile.delete()
+    }
+
+    void destroy() {
+        service.shutdown
     }
 }
