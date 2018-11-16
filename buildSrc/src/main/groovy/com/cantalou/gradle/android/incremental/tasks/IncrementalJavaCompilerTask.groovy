@@ -3,7 +3,6 @@ package com.cantalou.gradle.android.incremental.tasks
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
-import com.cantalou.gradle.android.incremental.utils.Ref
 import com.google.common.collect.ImmutableList
 import org.gradle.api.Action
 import org.gradle.api.DefaultTask
@@ -48,22 +47,15 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return monitor.getModifiedFile()
     }
 
-    /**
-     * Returns the source for this task, after the include and exclude patterns have been applied. Ignores source files which do not exist.
-     *
-     * @return The source.
-     */
-    @InputFiles
-    @SkipWhenEmpty
-    @PathSensitive(PathSensitivity.NAME_ONLY)
-    public FileTree getSource() {
-        return javaCompiler.getSource()
-    }
-
     @InputDirectory
     @SkipWhenEmpty
     File getGenerateDir() {
         return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/source")
+    }
+
+    @Input
+    double getRandomId() {
+        return Math.random()
     }
 
     @OutputDirectory
@@ -94,11 +86,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                     return
                 }
                 def inputFile = inputFileDetails.getFile()
-                if (FileUtils.hasExtension(inputFile, ".java")) {
-                    if (!changedFiles.contains(inputFile.absolutePath)) {
-                        changedFiles << inputFile.absolutePath
-                    }
-                } else if (FileUtils.hasExtension(inputFile, ".jar") && monitor.detectModified(inputFile)) {
+                if (FileUtils.hasExtension(inputFile, ".jar") && monitor.detectModified(inputFile)) {
                     LOG.lifecycle("${project.path}:${getName()} dependency jar ${inputFile} was changed, need full recompile")
                     needFullCompile = true
                 }
@@ -110,9 +98,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        //detectSourceFiles()
-        //detectGeneratedSource()
-        //changedFiles = monitor.getModifiedFile()
+        detectSourceFiles()
+        changedFiles = monitor.getModifiedFile()
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
@@ -200,6 +187,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                 return
             }
 
+            monitor.updateResourcesModified()
             javaCompiler.enabled = false
             LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
         } catch (Throwable throwable) {
@@ -232,8 +220,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         setDidWork(result.getDidWork())
         if (!result.getDidWork()) {
             monitor.clearCache()
-        } else {
-            monitor.updateResourcesModified()
         }
     }
 
@@ -291,12 +277,9 @@ class IncrementalJavaCompilerTask extends DefaultTask {
      */
     void detectSourceFiles() {
         Collection<File> sourceFiles = javaCompiler.getSource().getFiles()
-        monitor.detectModified(sourceFiles, true)
+        monitor.detectModified(sourceFiles)
     }
 
-    void detectGeneratedSource() {
-        monitor.detectModified([getGenerateDir()], false)
-    }
 }
 
 

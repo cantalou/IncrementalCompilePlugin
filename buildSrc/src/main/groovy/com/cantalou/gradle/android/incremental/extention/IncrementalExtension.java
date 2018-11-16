@@ -12,5 +12,5 @@ public class IncrementalExtension
     /**
      * Auto enable preDexLibraries properties when only one device connected that sdk version > 21
      */
-    public boolean autoPreDex;
+    public boolean disableAutoPreDex;
 }

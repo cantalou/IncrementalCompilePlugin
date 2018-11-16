@@ -6,8 +6,6 @@ import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.api.logging.Logger
-import org.gradle.api.logging.Logging
 
 /**
  * By default, Gradle will disable incremental compile with javac when a modified java source contains constant field,
@@ -19,7 +17,7 @@ import org.gradle.api.logging.Logging
  */
 class IncrementalBuildPlugin implements Plugin<Project> {
 
-    private static final Logger LOG = Logging.getLogger(IncrementalBuildPlugin.class)
+    static boolean loggable = true
 
     Project project
 
@@ -57,14 +55,17 @@ class IncrementalBuildPlugin implements Plugin<Project> {
     }
 
     void createIncrementalBuildTask(ApplicationVariantImpl variant) {
-        LOG.info("${project.path}:incrementalBuildPlugin Start creating incremental build task for ${variant.name}")
+
+        if (loggable) {
+            project.println("${project.path}:incrementalBuildPlugin Start creating incremental build task for ${variant.name}")
+        }
 
         def taskContainer = project.tasks
 
         IncrementalJavaCompilerTask task = taskContainer.create("incremental${variant.name.capitalize()}JavaWithJavac", IncrementalJavaCompilerTask)
         task.variant = variant
         task.javaCompiler = variant.javaCompiler
-        //task.outputs.upToDateWhen { false }
+        task.outputs.upToDateWhen { false }
         task.monitor = new FileMonitor(project, task.getIncrementalOutputs())
         variant.javaCompiler.dependsOn task
 
@@ -86,14 +87,16 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
     void enablePreDexLibraries() {
         IncrementalExtension extension = project.getExtensions().getByName(IncrementalExtension.NAME)
-        if (extension != null && !extension.autoPreDex || deviceSdkVersion < 21) {
+        if (extension != null && extension.disableAutoPreDex || deviceSdkVersion < 21) {
             return
         }
         if (!isApplyBeforeAndroid) {
             project.println("${project.path}:incrementalBuildPlugin You must apply this plugin before plugin: 'com.android.application' in build.gradle")
         }
         project.android.dexOptions.preDexLibraries = true
-        LOG.info("${project.path}:incrementalBuildPlugin enable android.dexOptions.preDexLibraries = true")
+        if (loggable) {
+            project.println("${project.path}:incrementalBuildPlugin enable android.dexOptions.preDexLibraries = true")
+        }
     }
 
     void checkMinSdk() {
@@ -112,7 +115,9 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         }
 
         project.android.defaultConfig.minSdkVersion = 21
-        LOG.info("${project.path}:incrementalBuildPlugin chage android.defaultConfig.minSdkVerion = 21")
+        if (loggable) {
+            project.println("${project.path}:incrementalBuildPlugin chage android.defaultConfig.minSdkVerion = 21")
+        }
     }
 
 }

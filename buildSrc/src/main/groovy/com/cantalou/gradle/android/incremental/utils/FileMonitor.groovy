@@ -1,14 +1,15 @@
 package com.cantalou.gradle.android.incremental.utils
 
+import com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
 import org.gradle.api.Project
-import org.gradle.api.logging.Logger
-import org.gradle.api.logging.Logging
 
-import java.util.concurrent.*
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 
 class FileMonitor {
-
-    private static final Logger LOG = Logging.getLogger(FileMonitor.class)
 
     static final String lineSeparator = ";"
 
@@ -22,10 +23,6 @@ class FileMonitor {
 
     File resourcesLastModifiedFile
 
-    boolean isCleanCheck
-
-    ExecutorService service
-
     FileMonitor(Project project, File outputDir) {
         this.project = project
         this.outputDIr = outputDir
@@ -35,18 +32,15 @@ class FileMonitor {
     }
 
     synchronized void init() {
+        outputDIr.mkdirs()
         resourcesLastModifiedFile = new File(outputDIr, "resourcesLastModified.txt")
         if (!resourcesLastModifiedFile.exists()) {
             return
         }
-        outputDIr.mkdirs()
         resourcesLastModifiedFile.eachLine("UTF-8") { String line ->
             int firstIndex = line.indexOf(lineSeparator)
             resourcesLastModifiedMap.put(line.substring(0, firstIndex), line)
         }
-        isCleanCheck = resourcesLastModifiedMap.isEmpty()
-
-        service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 16)
     }
 
     synchronized boolean detectModified(Collection<File> files) {
@@ -56,40 +50,55 @@ class FileMonitor {
         }
 
         long start = System.currentTimeMillis()
-        LOG.info("FileMonitor: Start to check resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
-        List<File> resourcesDir = new CopyOnWriteArrayList<>(files)
+        if (IncrementalBuildPlugin.loggable) {
+            project.println("FileMonitor: Start to check resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
+        }
 
-        List<Future> futures = new ArrayList<>()
-        while (!resourcesDir.isEmpty()) {
-            final File file = resourcesDir.remove(0)
-            futures << service.submit(new Runnable() {
-                @Override
-                void run() {
-                    if (file.isDirectory()) {
-                        File[] subFile = file.listFiles()
-                        if (subFile == null) {
-                            return
-                        }
-                        resourcesDir.addAll(subFile)
-                    } else {
-                        detectModified(file)
-                    }
-                }
-            })
+        AtomicInteger tasks = new AtomicInteger(0)
+        ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 64)
+        files.each { File sourceFile ->
+            addDetectTask(service, sourceFile, tasks)
         }
-        futures.each {
-            it.get()
+        while (tasks.get() > 0) {
+            project.println("FileMonitor: task size ${tasks.get()}, wait 50ms")
+            Thread.sleep(50)
         }
+        service.shutdown()
+
         int duration = System.currentTimeMillis() - start
-        LOG.info("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
+        if (IncrementalBuildPlugin.loggable) {
+            project.println("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
+        }
         return !newResourcesLastModifiedMap.isEmpty()
     }
 
-    synchronized boolean detectModified(File file) {
+    void addDetectTask(ExecutorService service, File file, AtomicInteger tasks) {
+        tasks.incrementAndGet()
+        service.execute(new Runnable() {
+            @Override
+            void run() {
+                if (file.isDirectory()) {
+                    File[] subFiles = file.listFiles()
+                    if (subFiles == null) {
+                        return
+                    }
+                    subFiles.each { File subFile ->
+                        addDetectTask(service, subFile, tasks)
+                    }
+
+                } else {
+                    detectModified(file)
+                }
+                tasks.decrementAndGet()
+            }
+        })
+    }
+
+    boolean detectModified(File file) {
         String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
         if (isModified(file, infoStr)) {
-            if (!isCleanCheck) {
-                LOG.info("FileMonitor: Detect file modified ${file}")
+            if (IncrementalBuildPlugin.loggable) {
+                project.println("FileMonitor: Detect file modified ${file}")
             }
             newResourcesLastModifiedMap.put(file.absolutePath, file.absolutePath + lineSeparator + file.lastModified() + lineSeparator + uniqueId(file))
             return true
@@ -103,8 +112,8 @@ class FileMonitor {
 
     boolean isModified(File file, String infoStr) {
         if (infoStr == null || infoStr.length() == 0) {
-            if (!isCleanCheck) {
-                LOG.info("infoStr empty")
+            if (IncrementalBuildPlugin.loggable) {
+                project.println("infoStr empty")
             }
             return true
         }
@@ -120,9 +129,9 @@ class FileMonitor {
             return false
         }
 
-        if (!isCleanCheck) {
-            LOG.debug("FileMonitor: infoStr lastModified ${infos[1]},length:${infos[2]}")
-            LOG.debug("FileMonitor: file    lastModified ${fileModified}, hashcode:${uniqueId}")
+        if (IncrementalBuildPlugin.loggable) {
+            project.println("FileMonitor: infoStr lastModified ${infos[1]},uniqueId:${infos[2]}")
+            project.println("FileMonitor: file    lastModified ${fileModified}, uniqueId:${uniqueId}")
         }
         return true
     }
@@ -138,7 +147,9 @@ class FileMonitor {
                 writer.println(v)
             }
         }
-        LOG.info("FileMonitor: Update resources modified info")
+        if (IncrementalBuildPlugin.loggable) {
+            project.println("FileMonitor: Update resources modified info")
+        }
     }
 
 
@@ -150,7 +161,4 @@ class FileMonitor {
         resourcesLastModifiedFile.delete()
     }
 
-    void destroy() {
-        service.shutdown
-    }
 }
