@@ -10,7 +10,7 @@ public class IncrementalExtension
     public static final String NAME = "incremental";
 
     /**
-     * Auto enable preDexLibraries properties when only one device connected that sdk version > 21
+     * Auto enable preDexLibraries properties when only one device connected that sdk version large 21
      */
     public boolean disableAutoPreDex;
 }

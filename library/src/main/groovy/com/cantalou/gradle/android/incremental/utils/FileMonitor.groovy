@@ -43,10 +43,10 @@ class FileMonitor {
         }
     }
 
-    synchronized List<File> detectModified(Collection<File> files) {
+    synchronized boolean detectModified(Collection<File> files) {
 
         if (files == null || files.isEmpty()) {
-            return Collections.emptyList()
+            return
         }
 
         long start = System.currentTimeMillis()
@@ -69,8 +69,7 @@ class FileMonitor {
         if (IncrementalBuildPlugin.loggable) {
             project.println("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
         }
-
-        return files.collect { newResourcesLastModifiedMap.contains(it.absolutePath) }
+        return !newResourcesLastModifiedMap.isEmpty()
     }
 
     void addDetectTask(ExecutorService service, File file, AtomicInteger tasks) {
@@ -96,9 +95,6 @@ class FileMonitor {
     }
 
     boolean detectModified(File file) {
-        if (!file.exists()) {
-            return false
-        }
         String infoStr = resourcesLastModifiedMap.get(file.absolutePath)
         if (isModified(file, infoStr)) {
             if (IncrementalBuildPlugin.loggable) {
@@ -134,7 +130,7 @@ class FileMonitor {
         }
 
         if (IncrementalBuildPlugin.loggable) {
-            project.println("FileMonitor: infoStr lastModified ${infos[1]}, uniqueId:${infos[2]}")
+            project.println("FileMonitor: infoStr lastModified ${infos[1]},uniqueId:${infos[2]}")
             project.println("FileMonitor: file    lastModified ${fileModified}, uniqueId:${uniqueId}")
         }
         return true
@@ -158,7 +154,7 @@ class FileMonitor {
 
 
     int uniqueId(File file) {
-        Math.abs(file.getText("UTF-8").hashCode())
+        file.getText("UTF-8").hashCode()
     }
 
     void clearCache() {

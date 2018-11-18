@@ -6,7 +6,6 @@ import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import com.google.common.collect.ImmutableList
 import org.gradle.api.Action
 import org.gradle.api.DefaultTask
-import org.gradle.api.file.FileTree
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
@@ -53,6 +52,11 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return new File(project.buildDir, "${AndroidProject.FD_GENERATED}/source")
     }
 
+    @Input
+    double getRandomId() {
+        return Math.random()
+    }
+
     @OutputDirectory
     File getIncrementalOutputs() {
         return new File(project.buildDir, "${AndroidProject.FD_INTERMEDIATES}/incremental/${variant.dirName}")
@@ -63,28 +67,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return new File(getIncrementalOutputs(), "classes")
     }
 
-    @OutputDirectory
-    File getCompileClasspathOutputs() {
-        return new File(getIncrementalOutputs(), "libs")
-    }
-
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
-
-        changedFiles = detectSourceFiles()
-
-        boolean fullCompile = false
-        for (File jarFile : detectClasspathFiles()) {
-            project.copy {
-                from jarFile
-                into getCompileClasspathOutputs()
-            }
-        }
-
-        if (fullCompile) {
-            fullCompileCallback()
-            return
-        }
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
@@ -92,6 +76,29 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             fullCompileCallback()
             return
         }
+
+        boolean needFullCompile = false
+        inputs.outOfDate(new Action<InputFileDetails>() {
+            @Override
+            void execute(InputFileDetails inputFileDetails) {
+                if (needFullCompile) {
+                    return
+                }
+                def inputFile = inputFileDetails.getFile()
+                if (FileUtils.hasExtension(inputFile, ".jar") && monitor.detectModified(inputFile)) {
+                    LOG.lifecycle("${project.path}:${getName()} dependency jar ${inputFile} was changed, need full recompile")
+                    needFullCompile = true
+                }
+            }
+        })
+
+        if (needFullCompile) {
+            fullCompileCallback()
+            return
+        }
+
+        detectSourceFiles()
+        changedFiles = monitor.getModifiedFile()
 
         //block until detect task finish
         if (changedFiles.size() > 40) {
@@ -102,7 +109,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
         if (changedFiles == null || changedFiles.isEmpty()) {
             LOG.lifecycle("${project.path}:${getName()} UP-TO-DATE")
-            //javaCompiler.enabled = false
+            javaCompiler.enabled = false
             LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
             return
         }
@@ -261,21 +268,15 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     }
 
     /**
-     * Default implementation is to scan all java resource and check if they was modified.
-     * In the feature version we will create background service to add file change monitor to os system, then we can just handle the modified file async.
+     * Default implementation is to scan all java resource and check if they was modified or not.
+     * In feature version we will create background service to add file change monitor to system, then we can just handle the modified file async.
      *
      * @param variant
      * @return
      */
-    List<File> detectSourceFiles() {
+    void detectSourceFiles() {
         Collection<File> sourceFiles = javaCompiler.getSource().getFiles()
-        return monitor.detectModified(sourceFiles)
-    }
-
-
-    List<File> detectClasspathFiles() {
-        Collection<File> classpathFiles = javaCompiler.classpath.getFiles()
-        return monitor.detectModified(classpathFiles)
+        monitor.detectModified(sourceFiles)
     }
 
 }
