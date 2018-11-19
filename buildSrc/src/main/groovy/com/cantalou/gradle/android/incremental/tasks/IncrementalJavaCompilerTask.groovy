@@ -70,18 +70,13 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
+        long start = System.currentTimeMillis()
+
         LOG.lifecycle("${project.path}:${getName()}: Start to check java resources modified")
         changedFiles = detectSourceFiles()
 
         LOG.lifecycle("${project.path}:${getName()}: Start to check classpath resources modified")
         def changedJarFiles = detectClasspathFiles()
-
-        File[] destDir = javaCompiler.destinationDir.listFiles()
-        if (destDir == null || destDir.length == 0) {
-            LOG.lifecycle("${project.path}:${getName()} class ouput dir is null , need full recompile")
-            fullCompileCallback()
-            return
-        }
 
         def classpathOutputs = getCompileClasspathOutputs()
         classpathOutputs.mkdirs()
@@ -101,6 +96,13 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                 fullCompileCallback()
                 return
             }
+        }
+
+        File[] destDir = javaCompiler.destinationDir.listFiles()
+        if (destDir == null || destDir.length == 0) {
+            LOG.lifecycle("${project.path}:${getName()} class ouput dir is null , need full recompile")
+            fullCompileCallback()
+            return
         }
 
         //block until detect task finish
@@ -139,9 +141,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-
         try {
-
             def preClasspath = javaCompiler.classpath.getFiles() as List
             preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false))
             preClasspath << javaCompiler.destinationDir
@@ -164,10 +164,10 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             }
 
             copyClasspathJar(changedJarFiles)
-
             monitor.updateResourcesModified()
             javaCompiler.enabled = false
             LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
+            LOG.lifecycle("${project.path}:${getName()} completed. Took ${(System.currentTimeMillis() - start)/1000.0} secs")
         } catch (Throwable throwable) {
             LOG.lifecycle("${project.path}:${getName()} error", throwable)
         }
