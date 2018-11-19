@@ -2,11 +2,12 @@ package com.cantalou.gradle.android.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
+import com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
+import com.cantalou.gradle.android.incremental.analysis.DirectoryAnalysis
+import com.cantalou.gradle.android.incremental.analysis.JarAnalysis
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import com.google.common.collect.ImmutableList
-import org.gradle.api.Action
 import org.gradle.api.DefaultTask
-import org.gradle.api.file.FileTree
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpecFactory
 import org.gradle.api.internal.tasks.compile.JavaCompileSpec
@@ -15,8 +16,6 @@ import org.gradle.api.logging.Logging
 import org.gradle.api.tasks.*
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.api.tasks.incremental.IncrementalTaskInputs
-import org.gradle.api.tasks.incremental.InputFileDetails
-import org.gradle.internal.FileUtils
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
@@ -71,26 +70,37 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     @TaskAction
     protected void compile(IncrementalTaskInputs inputs) {
 
+        LOG.lifecycle("${project.path}:${getName()}: Start to check java resources modified")
         changedFiles = detectSourceFiles()
 
-        boolean fullCompile = false
-        for (File jarFile : detectClasspathFiles()) {
-            project.copy {
-                from jarFile
-                into getCompileClasspathOutputs()
-            }
-        }
-
-        if (fullCompile) {
-            fullCompileCallback()
-            return
-        }
+        LOG.lifecycle("${project.path}:${getName()}: Start to check classpath resources modified")
+        def changedJarFiles = detectClasspathFiles()
 
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
-            LOG.lifecycle("${project.path}:${getName()} ouput dir is null , need full recompile")
+            LOG.lifecycle("${project.path}:${getName()} class ouput dir is null , need full recompile")
             fullCompileCallback()
             return
+        }
+
+        def classpathOutputs = getCompileClasspathOutputs()
+        classpathOutputs.mkdirs()
+        def preClasspathJars = classpathOutputs.listFiles()
+        if (preClasspathJars.length == 0) {
+            LOG.lifecycle("${project.path}:${getName()} classpath output is null , need full recompile")
+            fullCompileCallback()
+            return
+        }
+
+        def currentClasspathJars = javaCompiler.classpath.getFiles()
+        for (File jarFile : changedJarFiles) {
+            JarAnalysis ja = new JarAnalysis(preClasspathJars as List, currentClasspathJars as List, jarFile)
+            ja.analysis()
+            if (ja.isFullRebuildNeeded()) {
+                LOG.lifecycle("${project.path}:${getName()} ${ja.getFullRebuildCause()}, need full recompile")
+                fullCompileCallback()
+                return
+            }
         }
 
         //block until detect task finish
@@ -102,7 +112,7 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
         if (changedFiles == null || changedFiles.isEmpty()) {
             LOG.lifecycle("${project.path}:${getName()} UP-TO-DATE")
-            //javaCompiler.enabled = false
+            javaCompiler.enabled = false
             LOG.lifecycle("${project.path}:${getName()} change ${javaCompiler}.enable=false")
             return
         }
@@ -129,44 +139,18 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
+
         try {
-            def preClasspath = javaCompiler.classpath.getFiles().collect { it.toURL() }
-            preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false).collect { it.toURL() })
-            preClasspath << javaCompiler.destinationDir.toURL()
-            URLClassLoader preClassloader = new URLClassLoader(preClasspath.toArray(new URL[preClasspath.size()]))
 
-            URLClassLoader incrementalClassloader = new URLClassLoader([incrementalClassesOutputs.toURL()].toArray(new URL[1]), preClassloader) {
-                @Override
-                Class<?> loadClass(String s) throws ClassNotFoundException {
-                    Class clazz = null;
-                    try {
-                        clazz = this.findClass(s)
-                    } catch (ClassNotFoundException var10) {
-                    }
-                    return clazz != null ? clazz : super.loadClass(s)
-                }
-            }
+            def preClasspath = javaCompiler.classpath.getFiles() as List
+            preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false))
+            preClasspath << javaCompiler.destinationDir
 
-            def incrementalClasses = []
-            def classDirPath = incrementalClassesOutputs.absolutePath
-            incrementalClassesOutputs.eachFileRecurse { File classFile ->
-                if (!classFile.name.endsWith(".class")) {
-                    return
-                }
-                String sourcePath = classFile.absolutePath
-                String className = sourcePath.substring(classDirPath.length() + 1, sourcePath.lastIndexOf(".")).replace(File.separatorChar, (char) '.')
-                incrementalClasses << incrementalClassloader.loadClass(className)
-            }
-
-            for (Class incrementalCompileClazz : incrementalClasses) {
-                try {
-                    Class preCompileClazz = preClassloader.loadClass(incrementalCompileClazz.name)
-                    if (checkFullCompile(preCompileClazz, incrementalCompileClazz)) {
-                        LOG.lifecycle("${project.path}:${getName()} checkFullCompile ${preCompileClazz.name} need full compile")
-                        return
-                    }
-                } catch (ClassNotFoundException e) {
-                }
+            DirectoryAnalysis da = new DirectoryAnalysis(javaCompiler.destinationDir, incrementalClassesOutputs, preClasspath)
+            if (da.isFullRebuildNeeded()) {
+                LOG.lifecycle("${project.path}:${getName()} ${da.getFullRebuildCause()}, need full recompile")
+                fullCompileCallback()
+                return
             }
 
             WorkResult result = project.copy {
@@ -178,6 +162,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
                 LOG.lifecycle("${project.path}:${getName()} failed to copy compiled class from ${incrementalClassesOutputs} to ${javaCompiler.destinationDir}")
                 return
             }
+
+            copyClasspathJar(changedJarFiles)
 
             monitor.updateResourcesModified()
             javaCompiler.enabled = false
@@ -191,8 +177,22 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         javaCompiler.doLast {
             if (javaCompiler.state.didWork) {
                 monitor.updateResourcesModified()
+                copyClasspathJar(javaCompiler.classpath.getFiles())
             } else {
                 monitor.clearCache()
+            }
+        }
+    }
+
+    void copyClasspathJar(def jarFiles) {
+        jarFiles.each { File jarFile ->
+            if (jarFile.isDirectory() || !jarFile.name.endsWith(".jar")) {
+                return
+            }
+            project.copy {
+                from jarFile
+                into getCompileClasspathOutputs()
+                rename jarFile.name, "${Math.abs(jarFile.hashCode())}-${jarFile.name}"
             }
         }
     }
@@ -232,34 +232,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         return spec
     }
 
-    boolean checkFullCompile(Class preCompileClazz, Class incrementalCompileClazz) {
-        int modifierFlag = Modifier.STATIC | Modifier.FINAL
-        def preCompileFields = preCompileClazz.getDeclaredFields()
-        for (Field preField : preCompileFields) {
-            preField.setAccessible(true)
-            if ((preField.modifiers & modifierFlag) != modifierFlag) {
-                continue
-            }
-            Class type = preField.getType()
-            if (!(type.isPrimitive() || type == String.class)) {
-                continue
-            }
-            try {
-                Field incrementalField = incrementalCompileClazz.getDeclaredField(preField.name)
-                incrementalField.setAccessible(true)
-                if (!preField.get(null).equals(incrementalField.get(null))) {
-                    LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was modified from ${preField.get(null)} to ${incrementalField.get(null)}")
-                    return true
-                }
-            } catch (NoSuchFieldException e) {
-                LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was missing from ${incrementalCompileClazz.name}")
-                return true
-            }
-        }
-
-        return false
-    }
-
     /**
      * Default implementation is to scan all java resource and check if they was modified.
      * In the feature version we will create background service to add file change monitor to os system, then we can just handle the modified file async.
@@ -279,19 +251,3 @@ class IncrementalJavaCompilerTask extends DefaultTask {
     }
 
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

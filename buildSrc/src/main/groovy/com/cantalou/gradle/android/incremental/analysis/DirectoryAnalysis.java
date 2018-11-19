@@ -21,22 +21,18 @@ public class DirectoryAnalysis extends AbstractAnalysis<File> {
 
     public DirectoryAnalysis(File preCompileResource, File currentCompileResource, List<File> jarFiles) throws MalformedURLException {
         super(preCompileResource, currentCompileResource);
-        parentClassloader = new URLClassLoader(toUrlArray(jarFiles));
-    }
-
-    private static URL[] toUrlArray(List<File> jarFiles) throws MalformedURLException {
         URL[] urls = new URL[jarFiles.size()];
         for (int i = 0; i < jarFiles.size(); i++) {
             urls[i] = jarFiles.get(i)
                               .toURL();
         }
-        return urls;
+        parentClassloader = new URLClassLoader(urls);
     }
 
     @Override
     public void analysis() throws Exception {
 
-        final URLClassLoader currentClassloader = new URLClassLoader(new URL[]{getCurrentCompileResource().toURL()}, parentClassloader) {
+        final URLClassLoader currentClassloader = new URLClassLoader(new URL[]{currentCompileResource.toURL()}, parentClassloader) {
             @Override
             public Class<?> loadClass(String s) throws ClassNotFoundException {
                 Class clazz = null;
@@ -48,10 +44,10 @@ public class DirectoryAnalysis extends AbstractAnalysis<File> {
             }
         };
 
-
         final List<Class> currentClasses = new ArrayList<>();
-        final String classDirPath = getCurrentCompileResource().getAbsolutePath();
-        ResourceGroovyMethods.eachFileRecurse(getCurrentCompileResource(), new Closure<File>(this) {
+        final int classNameStartIndex = currentCompileResource.getAbsolutePath()
+                                                              .length() + 1;
+        ResourceGroovyMethods.eachFileRecurse(currentCompileResource, new Closure<File>(this) {
             @Override
             public File call(Object arguments) {
                 File classFile = (File) arguments;
@@ -60,27 +56,24 @@ public class DirectoryAnalysis extends AbstractAnalysis<File> {
                     return null;
                 }
                 String sourcePath = classFile.getAbsolutePath();
-                String className = sourcePath.substring(classDirPath.length() + 1, sourcePath.lastIndexOf("."))
+                String className = sourcePath.substring(classNameStartIndex, sourcePath.lastIndexOf("."))
                                              .replace(File.separatorChar, (char) '.');
                 try {
                     currentClasses.add(currentClassloader.loadClass(className));
                 } catch (ClassNotFoundException e) {
                     throw new IllegalStateException(e);
                 }
-
-                return super.call(arguments);
+                return null;
             }
         });
 
-        final URLClassLoader preClassloader = new URLClassLoader(new URL[]{getCurrentCompileResource().toURL()}, parentClassloader);
-
-        for (Class currentCompileClazz : currentClasses) {
+        final URLClassLoader preClassloader = new URLClassLoader(new URL[]{preCompileResource.toURL()}, parentClassloader);
+        for (Class currentClazz : currentClasses) {
             try {
-                Class preCompileClazz = preClassloader.loadClass(currentCompileClazz.getName());
-                ClassAnalysis classAnalysis = new ClassAnalysis(preCompileClazz, currentCompileClazz);
+                Class preCompileClazz = preClassloader.loadClass(currentClazz.getName());
+                ClassAnalysis classAnalysis = new ClassAnalysis(preCompileClazz, currentClazz);
                 classAnalysis.analysis();
                 if (classAnalysis.isFullRebuildNeeded()) {
-                    LOG.lifecycle(classAnalysis.getFullRebuildCause());
                     setFullRebuildCause(classAnalysis.getFullRebuildCause());
                     break;
                 }

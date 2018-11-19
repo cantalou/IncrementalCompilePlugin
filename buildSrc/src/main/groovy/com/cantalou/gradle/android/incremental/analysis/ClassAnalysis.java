@@ -16,7 +16,7 @@ public class ClassAnalysis extends AbstractAnalysis<Class> {
     @Override
     public void analysis() throws Exception {
         int modifierFlag = Modifier.STATIC | Modifier.FINAL;
-        Field[] preCompileFields = getPreCompileResource().getDeclaredFields();
+        Field[] preCompileFields = preCompileResource.getDeclaredFields();
         for (Field preField : preCompileFields) {
             preField.setAccessible(true);
             if ((preField.getModifiers() & modifierFlag) != modifierFlag) {
@@ -27,19 +27,17 @@ public class ClassAnalysis extends AbstractAnalysis<Class> {
                 continue;
             }
             try {
-                Field currentField = getCurrentCompileResource().getDeclaredField(preField.getName());
+                Field currentField = currentCompileResource.getDeclaredField(preField.getName());
                 currentField.setAccessible(true);
                 Object preValue = preField.get(null);
                 Object currentValue = currentField.get(null);
                 if (!preValue.equals(currentValue)) {
-                    String cause = "field '" + preField.getName() + "' was modified from " + preValue + " to " + currentValue + "";
-                    LOG.lifecycle(cause);
-                    setFullRebuildCause(cause);
-                    return;
+                    setFullRebuildCause("value of constant field '" + preField.getName() + "' was modified from " + preValue + " to " + currentValue);
+                    break;
                 }
             } catch (NoSuchFieldException e) {
-                LOG.lifecycle("${project.path}:${getName()} field '${preField.name}' was missing from ${currentCompileClass.name}");
-                return;
+                setFullRebuildCause("constant field '" + preField.getName() + "' was removed from " + preCompileResource.getName());
+                break;
             }
         }
     }

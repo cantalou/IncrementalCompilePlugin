@@ -6,7 +6,6 @@ import org.gradle.api.Project
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 class FileMonitor {
@@ -49,11 +48,8 @@ class FileMonitor {
             return Collections.emptyList()
         }
 
+        int currentSize = newResourcesLastModifiedMap.size()
         long start = System.currentTimeMillis()
-        if (IncrementalBuildPlugin.loggable) {
-            project.println("FileMonitor: Start to check resources modified ${files.size() > 1 ? files.size() : files.getAt(0)}")
-        }
-
         AtomicInteger tasks = new AtomicInteger(0)
         ExecutorService service = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() * 64)
         files.each { File sourceFile ->
@@ -67,10 +63,16 @@ class FileMonitor {
 
         int duration = System.currentTimeMillis() - start
         if (IncrementalBuildPlugin.loggable) {
-            project.println("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size()}, time:${duration}ms")
+            project.println("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size() - currentSize}, time:${duration}ms")
         }
 
-        return files.collect { newResourcesLastModifiedMap.contains(it.absolutePath) }
+        List<File> result = new ArrayList<>()
+        files.each { File sourceFile ->
+            if (newResourcesLastModifiedMap.containsKey(sourceFile.absolutePath)) {
+                result << sourceFile
+            }
+        }
+        return result
     }
 
     void addDetectTask(ExecutorService service, File file, AtomicInteger tasks) {
@@ -158,7 +160,7 @@ class FileMonitor {
 
 
     int uniqueId(File file) {
-        Math.abs(file.getText("UTF-8").hashCode())
+        return Math.abs(file.getText("UTF-8").hashCode())
     }
 
     void clearCache() {
