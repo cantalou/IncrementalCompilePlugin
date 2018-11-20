@@ -2,9 +2,9 @@ package com.cantalou.gradle.android.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
-import com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
-import com.cantalou.gradle.android.incremental.analysis.DirectoryAnalysis
-import com.cantalou.gradle.android.incremental.analysis.JarAnalysis
+import com.cantalou.gradle.android.incremental.analysis.impl.ClasspathAnalysis
+import com.cantalou.gradle.android.incremental.analysis.impl.DirectoryAnalysis
+import com.cantalou.gradle.android.incremental.analysis.impl.JarAnalysis
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
@@ -19,9 +19,6 @@ import org.gradle.api.tasks.incremental.IncrementalTaskInputs
 import org.gradle.jvm.internal.toolchain.JavaToolChainInternal
 import org.gradle.language.base.internal.compile.Compiler
 import org.gradle.language.base.internal.compile.CompilerUtil
-
-import java.lang.reflect.Field
-import java.lang.reflect.Modifier
 
 /**
  *
@@ -78,26 +75,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         LOG.lifecycle("${project.path}:${getName()}: Start to check classpath resources modified")
         def changedJarFiles = detectClasspathFiles()
 
-        def classpathOutputs = getCompileClasspathOutputs()
-        classpathOutputs.mkdirs()
-        def preClasspathJars = classpathOutputs.listFiles()
-        if (preClasspathJars.length == 0) {
-            LOG.lifecycle("${project.path}:${getName()} classpath output is null , need full recompile")
-            fullCompileCallback()
-            return
-        }
-
-        def currentClasspathJars = javaCompiler.classpath.getFiles()
-        for (File jarFile : changedJarFiles) {
-            JarAnalysis ja = new JarAnalysis(preClasspathJars as List, currentClasspathJars as List, jarFile)
-            ja.analysis()
-            if (ja.isFullRebuildNeeded()) {
-                LOG.lifecycle("${project.path}:${getName()} ${ja.getFullRebuildCause()}, need full recompile")
-                fullCompileCallback()
-                return
-            }
-        }
-
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             LOG.lifecycle("${project.path}:${getName()} class ouput dir is null , need full recompile")
@@ -105,9 +82,15 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             return
         }
 
-        //block until detect task finish
         if (changedFiles.size() > 40) {
             LOG.lifecycle("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
+            fullCompileCallback()
+            return
+        }
+
+        ClasspathAnalysis ca = new ClasspathAnalysis(getCompileClasspathOutputs().listFiles() as List, javaCompiler.classpath.getFiles())
+        if(ca.isFullRebuildNeeded()){
+            LOG.lifecycle("${project.path}:${getName()} ${ca.fullRebuildCause} , need full recompile")
             fullCompileCallback()
             return
         }

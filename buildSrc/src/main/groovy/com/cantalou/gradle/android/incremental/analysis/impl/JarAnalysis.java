@@ -1,9 +1,13 @@
-package com.cantalou.gradle.android.incremental.analysis;
+package com.cantalou.gradle.android.incremental.analysis.impl;
+
+import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
 
 import java.io.File;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Enumeration;
 import java.util.List;
 import java.util.zip.ZipEntry;
@@ -13,13 +17,13 @@ import java.util.zip.ZipFile;
  * @author cantalou
  * @date 2018-11-18 11:36
  */
-public class JarAnalysis extends AbstractAnalysis<List<File>> {
+public class JarAnalysis extends AbstractAnalysis<Collection<File>> {
 
     private File preJarFile;
 
     private File currentJarFile;
 
-    public JarAnalysis(List<File> preCompileResource, List<File> currentCompileResource, File currentJarFile) throws MalformedURLException {
+    public JarAnalysis(Collection<File> preCompileResource, Collection<File> currentCompileResource, File currentJarFile) throws Exception {
         super(preCompileResource, currentCompileResource);
         this.currentJarFile = currentJarFile;
         String jarFileName = Math.abs(currentJarFile.hashCode()) + "-" + currentJarFile.getName();
@@ -54,7 +58,6 @@ public class JarAnalysis extends AbstractAnalysis<List<File>> {
             Class preClass = preCl.loadClass(className);
             Class currentClass = currentCl.loadClass(className);
             ClassAnalysis ca = new ClassAnalysis(preClass, currentClass);
-            ca.analysis();
             if (ca.isFullRebuildNeeded()) {
                 setFullRebuildCause(ca.getFullRebuildCause());
                 break;
@@ -64,12 +67,11 @@ public class JarAnalysis extends AbstractAnalysis<List<File>> {
         currentZipFile.close();
     }
 
-    private URLClassLoader createClassLoader(List<File> jarFiles) throws MalformedURLException {
-        URL[] urls = new URL[jarFiles.size()];
-        for (int i = 0; i < jarFiles.size(); i++) {
-            urls[i] = jarFiles.get(i)
-                              .toURL();
+    private URLClassLoader createClassLoader(Collection<File> jarFiles) throws MalformedURLException {
+        List<URL> urls = new ArrayList<>();
+        for (File file : jarFiles) {
+            urls.add( file.toURL());
         }
-        return new URLClassLoader(urls);
+        return new URLClassLoader(urls.toArray(new URL[0]));
     }
 }

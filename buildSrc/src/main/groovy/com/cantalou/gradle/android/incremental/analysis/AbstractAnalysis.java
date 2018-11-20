@@ -3,8 +3,6 @@ package com.cantalou.gradle.android.incremental.analysis;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-import java.io.File;
-
 /**
  * @author cantalou
  * @date 2018-11-18 11:42
@@ -19,6 +17,7 @@ public abstract class AbstractAnalysis<T> implements Analysis {
 
     protected String fullRebuildCause;
 
+    protected boolean analysed = false;
 
     public AbstractAnalysis(T preCompileResource, T currentCompileResource) {
         this.preCompileResource = preCompileResource;
@@ -30,13 +29,22 @@ public abstract class AbstractAnalysis<T> implements Analysis {
     }
 
     @Override
-    public boolean isFullRebuildNeeded() {
+    public boolean isFullRebuildNeeded() throws Exception {
+        ensureAnalysis();
         return fullRebuildCause != null;
     }
 
     @Override
-    public String getFullRebuildCause() {
+    public String getFullRebuildCause() throws Exception {
+        ensureAnalysis();
         return fullRebuildCause;
+    }
+
+    protected void ensureAnalysis() throws Exception{
+        if (!analysed) {
+            analysis();
+            analysed = true;
+        }
     }
 
     public void setFullRebuildCause(String fullRebuildCause) {

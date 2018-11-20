@@ -6,9 +6,9 @@ package com.cantalou.gradle.android.incremental.analysis;
  */
 public interface Analysis {
 
-    String getFullRebuildCause();
+    String getFullRebuildCause() throws Exception;
 
-    boolean isFullRebuildNeeded() ;
+    boolean isFullRebuildNeeded() throws Exception;
 
     void analysis() throws Exception;
 }

@@ -1,4 +1,6 @@
-package com.cantalou.gradle.android.incremental.analysis;
+package com.cantalou.gradle.android.incremental.analysis.impl;
+
+import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
 
 import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 
@@ -19,7 +21,7 @@ public class DirectoryAnalysis extends AbstractAnalysis<File> {
 
     protected ClassLoader parentClassloader;
 
-    public DirectoryAnalysis(File preCompileResource, File currentCompileResource, List<File> jarFiles) throws MalformedURLException {
+    public DirectoryAnalysis(File preCompileResource, File currentCompileResource, List<File> jarFiles) throws Exception {
         super(preCompileResource, currentCompileResource);
         URL[] urls = new URL[jarFiles.size()];
         for (int i = 0; i < jarFiles.size(); i++) {
@@ -72,7 +74,6 @@ public class DirectoryAnalysis extends AbstractAnalysis<File> {
             try {
                 Class preCompileClazz = preClassloader.loadClass(currentClazz.getName());
                 ClassAnalysis classAnalysis = new ClassAnalysis(preCompileClazz, currentClazz);
-                classAnalysis.analysis();
                 if (classAnalysis.isFullRebuildNeeded()) {
                     setFullRebuildCause(classAnalysis.getFullRebuildCause());
                     break;
