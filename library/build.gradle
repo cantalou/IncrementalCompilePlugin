@@ -1,6 +1,11 @@
 apply plugin: 'groovy'
 apply from: 'publish.gradle'
 
+sourceSets {
+    main{
+        groovy.srcDirs = ['../buildSrc/src/main/groovy']
+    }
+}
 
 dependencies {
     compile gradleApi()

@@ -5,7 +5,6 @@ import org.gradle.api.logging.Logging;
 
 /**
  * @author cantalou
- * @date 2018-11-18 11:42
  */
 public abstract class AbstractAnalysis<T> implements Analysis {
 

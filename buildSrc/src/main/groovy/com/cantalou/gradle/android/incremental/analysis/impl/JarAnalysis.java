@@ -15,7 +15,6 @@ import java.util.zip.ZipFile;
 
 /**
  * @author cantalou
- * @date 2018-11-18 11:36
  */
 public class JarAnalysis extends AbstractAnalysis<Collection<File>> {
 

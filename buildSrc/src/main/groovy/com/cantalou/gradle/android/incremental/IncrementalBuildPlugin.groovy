@@ -1,6 +1,7 @@
 package com.cantalou.gradle.android.incremental
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
+import com.android.builder.core.DefaultApiVersion
 import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
 import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
@@ -29,6 +30,10 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
         this.project = project
 
+        if (!canIncrementalBuild()) {
+            return
+        }
+
         if (project.hasProperty("android")) {
             isApplyBeforeAndroid = false
         }
@@ -45,15 +50,16 @@ class IncrementalBuildPlugin implements Plugin<Project> {
             enablePreDexLibraries()
 
             project.android.applicationVariants.all { ApplicationVariantImpl variant ->
-                if (!canIncrementalBuild(variant)) {
-                    return
-                }
                 createIncrementalBuildTask(variant)
             }
         }
     }
 
     void createIncrementalBuildTask(ApplicationVariantImpl variant) {
+
+        if(!variant.buildType.name.equals("debug")){
+            return
+        }
 
         if (loggable) {
             project.println("${project.path}:incrementalBuildPlugin Start creating incremental build task for ${variant.name}")
@@ -80,8 +86,8 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         }
     }
 
-    boolean canIncrementalBuild(ApplicationVariantImpl variant) {
-        variant.buildType.name == "debug"
+    boolean canIncrementalBuild() {
+        project.gradle.startParameter.taskNames.any {it.matches("assemble(.*?)Debug")}
     }
 
     void enablePreDexLibraries() {

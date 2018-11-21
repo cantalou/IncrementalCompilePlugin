@@ -15,7 +15,6 @@ import groovy.lang.Closure;
 
 /**
  * @author cantalou
- * @date 2018-11-18 11:39
  */
 public class DirectoryAnalysis extends AbstractAnalysis<File> {
 

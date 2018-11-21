@@ -7,7 +7,6 @@ import java.lang.reflect.Modifier;
 
 /**
  * @author cantalou
- * @date 2018-11-18 11:21
  */
 public class ClassAnalysis extends AbstractAnalysis<Class> {
 
