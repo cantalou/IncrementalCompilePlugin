@@ -1,7 +1,6 @@
 package com.cantalou.gradle.android.incremental
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
-import com.android.builder.core.DefaultApiVersion
 import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
 import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
 import com.cantalou.gradle.android.incremental.utils.FileMonitor
@@ -57,7 +56,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
 
     void createIncrementalBuildTask(ApplicationVariantImpl variant) {
 
-        if(!variant.buildType.name.equals("debug")){
+        if (!variant.buildType.name.equals("debug")) {
             return
         }
 
@@ -87,7 +86,7 @@ class IncrementalBuildPlugin implements Plugin<Project> {
     }
 
     boolean canIncrementalBuild() {
-        project.gradle.startParameter.taskNames.any {it.matches("assemble(.*?)Debug")}
+        project.gradle.startParameter.taskNames.any { it.matches(":[^:]+:assemble(.*?)Debug") }
     }
 
     void enablePreDexLibraries() {
@@ -110,13 +109,26 @@ class IncrementalBuildPlugin implements Plugin<Project> {
             return
         }
 
-        String sdkInfo = "adb shell getprop ro.build.version.sdk".execute().getText().trim()
-        if (sdkInfo.matches("\\d+")) {
-            deviceSdkVersion = sdkInfo.toInteger()
-        }
+        for (String line : "adb devices".execute().getText().readLines()) {
 
-        if (deviceSdkVersion < 21) {
-            return
+            if (line.startsWith("List of devices attached")) {
+                continue
+            }
+
+            int deviceIndex = line.indexOf("device")
+            if (deviceIndex == -1) {
+                continue
+            }
+            def deviceSerial = line.substring(0, deviceIndex).trim()
+            String sdkInfo = "adb -s ${ deviceSerial} shell getprop ro.build.version.sdk".execute().getText().trim()
+            if (sdkInfo.matches("\\d+")) {
+                deviceSdkVersion = sdkInfo.toInteger()
+                project.println("${project.path}:incrementalBuildPlugin device ${deviceSerial} sdk version ${sdkInfo}")
+            }
+
+            if (deviceSdkVersion < 21) {
+                return
+            }
         }
 
         project.android.defaultConfig.minSdkVersion = 21
