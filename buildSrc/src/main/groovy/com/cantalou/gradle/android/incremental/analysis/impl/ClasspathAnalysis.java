@@ -5,9 +5,6 @@ import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
 import java.io.File;
 import java.util.Collection;
 
-/**
- * @author cantalou
- */
 public class ClasspathAnalysis extends AbstractAnalysis<Collection<File>> {
 
     public ClasspathAnalysis(Collection<File> preCompileResource, Collection<File> currentCompileResource) throws Exception {

@@ -5,7 +5,6 @@ import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
 import org.codehaus.groovy.runtime.ResourceGroovyMethods;
 
 import java.io.File;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.ArrayList;
@@ -13,9 +12,6 @@ import java.util.List;
 
 import groovy.lang.Closure;
 
-/**
- * @author cantalou
- */
 public class DirectoryAnalysis extends AbstractAnalysis<File> {
 
     protected ClassLoader parentClassloader;

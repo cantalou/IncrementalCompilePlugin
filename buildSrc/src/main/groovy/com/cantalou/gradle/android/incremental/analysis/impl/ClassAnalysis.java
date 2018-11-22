@@ -5,9 +5,6 @@ import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 
-/**
- * @author cantalou
- */
 public class ClassAnalysis extends AbstractAnalysis<Class> {
 
     public ClassAnalysis(Class preCompileResource, Class currentCompileResource) {

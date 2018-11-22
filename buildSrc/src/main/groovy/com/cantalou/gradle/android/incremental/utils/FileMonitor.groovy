@@ -6,6 +6,7 @@ import org.gradle.api.Project
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeoutException
 import java.util.concurrent.atomic.AtomicInteger
 
 class FileMonitor {
@@ -55,15 +56,19 @@ class FileMonitor {
         files.each { File sourceFile ->
             addDetectTask(service, sourceFile, tasks)
         }
-        while (tasks.get() > 0) {
-            project.println("FileMonitor: task size ${tasks.get()}, wait 50ms")
-            Thread.sleep(50)
+        int maxWaitTimes = 0
+        while (tasks.get() > 0 && maxWaitTimes++ < 200) {
+            //project.println("FileMonitor: task size ${tasks.get()}, wait 50ms")
+            Thread.sleep(20)
+        }
+        if(maxWaitTimes >= 200){
+            throw new TimeoutException("Timeout for detect resource change ")
         }
         service.shutdown()
 
         int duration = System.currentTimeMillis() - start
         if (IncrementalBuildPlugin.loggable) {
-            project.println("FileMonitor: Check resources modified finish, size:${newResourcesLastModifiedMap.size() - currentSize}, time:${duration}ms")
+            project.println("FileMonitor: Check resources modified finish, time:${duration}ms")
         }
 
         List<File> result = new ArrayList<>()

@@ -11,7 +11,6 @@ import org.gradle.api.Project
  * By default, Gradle will disable incremental compile with javac when a modified java source contains constant field,
  * even though the constant value is the same as preview compile, which leads to spending more time in building process.
  *
- * @author cantalou
  *
  */
 class IncrementalBuildPlugin implements Plugin<Project> {
@@ -71,6 +70,9 @@ class IncrementalBuildPlugin implements Plugin<Project> {
         task.javaCompiler = variant.javaCompiler
         task.outputs.upToDateWhen { false }
         task.monitor = new FileMonitor(project, task.getIncrementalOutputs())
+        task.dependsOn variant.mergeResources
+        task.dependsOn variant.variantData.generateRClassTask
+
         variant.javaCompiler.dependsOn task
 
         def safeguardTask = taskContainer.getByName("incremental${variant.name.capitalize()}JavaCompilationSafeguard")
@@ -86,7 +88,19 @@ class IncrementalBuildPlugin implements Plugin<Project> {
     }
 
     boolean canIncrementalBuild() {
-        project.gradle.startParameter.taskNames.any { it.matches(":[^:]+:assemble(.*?)Debug") }
+        if (!project.gradle.startParameter.taskNames.any { it.matches(":[^:]+:assemble(.*?)Debug") }) {
+            return false
+        }
+
+        Properties prop = new Properties()
+        File localProp = new File("${project.rootDir}/local.properties")
+        if (!localProp.exists()) {
+            return false
+        }
+        localProp.withInputStream { input ->
+            prop.load(input)
+        }
+        return "true" == prop.getProperty("build.incremental", "false")
     }
 
     void enablePreDexLibraries() {

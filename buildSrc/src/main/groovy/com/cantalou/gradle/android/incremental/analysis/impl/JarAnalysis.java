@@ -13,9 +13,6 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
-/**
- * @author cantalou
- */
 public class JarAnalysis extends AbstractAnalysis<Collection<File>> {
 
     private File preJarFile;

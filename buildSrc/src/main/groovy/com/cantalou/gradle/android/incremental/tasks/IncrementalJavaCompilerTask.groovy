@@ -69,6 +69,8 @@ class IncrementalJavaCompilerTask extends DefaultTask {
 
         long start = System.currentTimeMillis()
 
+        fullCompileCallback()
+
         LOG.lifecycle("${project.path}:${getName()}: Start to check java resources modified")
         changedFiles = detectSourceFiles()
 
@@ -78,20 +80,17 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         File[] destDir = javaCompiler.destinationDir.listFiles()
         if (destDir == null || destDir.length == 0) {
             LOG.lifecycle("${project.path}:${getName()} class ouput dir is null , need full recompile")
-            fullCompileCallback()
             return
         }
 
         if (changedFiles.size() > 40) {
             LOG.lifecycle("${project.path}:${getName()} Detect modified file lager than 40, use normal java compiler")
-            fullCompileCallback()
             return
         }
 
         ClasspathAnalysis ca = new ClasspathAnalysis(getCompileClasspathOutputs().listFiles() as List, javaCompiler.classpath.getFiles())
         if(ca.isFullRebuildNeeded()){
             LOG.lifecycle("${project.path}:${getName()} ${ca.fullRebuildCause} , need full recompile")
-            fullCompileCallback()
             return
         }
 
@@ -132,7 +131,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
             DirectoryAnalysis da = new DirectoryAnalysis(javaCompiler.destinationDir, incrementalClassesOutputs, preClasspath)
             if (da.isFullRebuildNeeded()) {
                 LOG.lifecycle("${project.path}:${getName()} ${da.getFullRebuildCause()}, need full recompile")
-                fullCompileCallback()
                 return
             }
 
