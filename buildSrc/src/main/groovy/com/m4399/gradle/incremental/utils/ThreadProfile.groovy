@@ -1,4 +1,4 @@
-package com.cantalou.gradle.android.incremental.utils
+package com.m4399.gradle.incremental.utils
 
 import org.gradle.api.Project
 import org.gradle.api.logging.Logger

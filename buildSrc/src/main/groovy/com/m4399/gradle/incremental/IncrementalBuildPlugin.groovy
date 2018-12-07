@@ -1,9 +1,9 @@
-package com.cantalou.gradle.android.incremental
+package com.m4399.gradle.incremental
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
-import com.cantalou.gradle.android.incremental.extention.IncrementalExtension
-import com.cantalou.gradle.android.incremental.tasks.IncrementalJavaCompilerTask
-import com.cantalou.gradle.android.incremental.utils.FileMonitor
+import com.m4399.gradle.incremental.tasks.IncrementalJavaCompilerTask
+import com.m4399.gradle.incremental.utils.FileMonitor
+import com.m4399.gradle.incremental.extention.IncrementalExtension
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 

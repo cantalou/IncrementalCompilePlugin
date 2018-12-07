@@ -1,4 +1,4 @@
-package com.cantalou.gradle.android.incremental.analysis;
+package com.m4399.gradle.incremental.analysis;
 
 /**
  * @author cantalou

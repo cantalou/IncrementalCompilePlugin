@@ -1,6 +1,6 @@
-package com.cantalou.gradle.android.incremental.analysis.impl;
+package com.m4399.gradle.incremental.analysis.impl;
 
-import com.cantalou.gradle.android.incremental.analysis.AbstractAnalysis;
+import com.m4399.gradle.incremental.analysis.AbstractAnalysis;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;

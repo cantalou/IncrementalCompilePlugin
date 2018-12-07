@@ -1,4 +1,4 @@
-package com.cantalou.gradle.plugin;
+package com.m4399.gradle.plugin;
 
 /**
  * @author cantalou
@@ -20,6 +20,8 @@ public class Utils
 
     public static int get1()
     {
-        return 1;
+        return 2;
     }
+
+
 }

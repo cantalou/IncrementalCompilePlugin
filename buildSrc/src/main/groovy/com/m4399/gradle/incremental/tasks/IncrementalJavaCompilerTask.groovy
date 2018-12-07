@@ -1,11 +1,10 @@
-package com.cantalou.gradle.android.incremental.tasks
+package com.m4399.gradle.incremental.tasks
 
 import com.android.build.gradle.internal.api.ApplicationVariantImpl
 import com.android.builder.model.AndroidProject
-import com.cantalou.gradle.android.incremental.analysis.impl.ClasspathAnalysis
-import com.cantalou.gradle.android.incremental.analysis.impl.DirectoryAnalysis
-import com.cantalou.gradle.android.incremental.analysis.impl.JarAnalysis
-import com.cantalou.gradle.android.incremental.utils.FileMonitor
+import com.m4399.gradle.incremental.analysis.impl.ClasspathAnalysis
+import com.m4399.gradle.incremental.analysis.impl.DirectoryAnalysis
+import com.m4399.gradle.incremental.utils.FileMonitor
 import com.google.common.collect.ImmutableList
 import org.gradle.api.DefaultTask
 import org.gradle.api.internal.tasks.compile.DefaultJavaCompileSpec
@@ -126,7 +125,6 @@ class IncrementalJavaCompilerTask extends DefaultTask {
         try {
             def preClasspath = javaCompiler.classpath.getFiles() as List
             preClasspath.addAll(variant.variantData.scope.globalScope.androidBuilder.getBootClasspath(false))
-            preClasspath << javaCompiler.destinationDir
 
             DirectoryAnalysis da = new DirectoryAnalysis(javaCompiler.destinationDir, incrementalClassesOutputs, preClasspath)
             if (da.isFullRebuildNeeded()) {

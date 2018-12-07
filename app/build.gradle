@@ -1,4 +1,4 @@
-apply plugin: com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
+apply plugin: com.m4399.gradle.android.incremental.IncrementalBuildPlugin
 apply plugin: 'com.android.application'
 
 android {
@@ -22,5 +22,5 @@ android {
 
 dependencies {
     compile 'com.android.support:appcompat-v7:28.0.0'
-    compile project(":applib")
+    //compile project(":applib")
 }

@@ -1,6 +1,6 @@
-package com.cantalou.gradle.android.incremental.utils
+package com.m4399.gradle.incremental.utils
 
-import com.cantalou.gradle.android.incremental.IncrementalBuildPlugin
+import com.m4399.gradle.incremental.IncrementalBuildPlugin
 import org.gradle.api.Project
 
 import java.util.concurrent.ConcurrentHashMap
