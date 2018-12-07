@@ -1,4 +1,4 @@
-apply plugin: com.m4399.gradle.android.incremental.IncrementalBuildPlugin
+apply plugin: com.m4399.gradle.incremental.IncrementalBuildPlugin
 apply plugin: 'com.android.application'
 
 android {

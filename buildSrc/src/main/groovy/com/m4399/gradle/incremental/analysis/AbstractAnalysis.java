@@ -3,9 +3,6 @@ package com.m4399.gradle.incremental.analysis;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 
-/**
- * @author cantalou
- */
 public abstract class AbstractAnalysis<T> implements Analysis {
 
     protected static final Logger LOG = Logging.getLogger(Analysis.class);

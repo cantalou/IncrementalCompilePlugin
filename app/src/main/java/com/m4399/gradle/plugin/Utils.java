@@ -11,7 +11,7 @@ public class Utils
 
     private static final String constant1 = "2";
 
-    public static final String constant2 = "3";
+    public static final String constant2 = "12";
 
     public static int get()
     {
@@ -22,6 +22,4 @@ public class Utils
     {
         return 2;
     }
-
-
 }

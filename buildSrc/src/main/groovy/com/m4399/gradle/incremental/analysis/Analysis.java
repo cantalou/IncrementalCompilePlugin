@@ -1,8 +1,5 @@
 package com.m4399.gradle.incremental.analysis;
 
-/**
- * @author cantalou
- */
 public interface Analysis {
 
     String getFullRebuildCause() throws Exception;

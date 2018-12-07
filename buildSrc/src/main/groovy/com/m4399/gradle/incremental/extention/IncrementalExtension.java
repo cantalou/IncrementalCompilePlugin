@@ -1,9 +1,5 @@
 package com.m4399.gradle.incremental.extention;
 
-/**
- * @author cantalou
- *
- */
 public class IncrementalExtension
 {
 
